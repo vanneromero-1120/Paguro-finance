@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS company_users (
 );
 
 -- Compatibility view for company_members
-CREATE OR REPLACE VIEW company_members AS SELECT * FROM company_users;
+CREATE OR REPLACE VIEW company_members WITH (security_invoker = true) AS SELECT * FROM company_users;
 
 -- 4. CUSTOMERS
 CREATE TABLE IF NOT EXISTS customers (
@@ -375,7 +375,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_entity ON documents(company_id, entity_
 -- ============================================================================
 -- COMPATIBILITY VIEWS FOR CONVENIENCE
 -- ============================================================================
-CREATE OR REPLACE VIEW invoices AS SELECT * FROM sales_invoices;
-CREATE OR REPLACE VIEW invoice_items AS SELECT * FROM sales_invoice_items;
-CREATE OR REPLACE VIEW expenses AS SELECT * FROM purchase_documents;
-CREATE OR REPLACE VIEW expense_items AS SELECT * FROM purchase_document_items;
+CREATE OR REPLACE VIEW invoices WITH (security_invoker = true) AS SELECT * FROM sales_invoices;
+CREATE OR REPLACE VIEW invoice_items WITH (security_invoker = true) AS SELECT * FROM sales_invoice_items;
+CREATE OR REPLACE VIEW expenses WITH (security_invoker = true) AS SELECT * FROM purchase_documents;
+CREATE OR REPLACE VIEW expense_items WITH (security_invoker = true) AS SELECT * FROM purchase_document_items;

@@ -39,7 +39,7 @@ BEGIN
           AND role = ANY(p_allowed_roles)
     );
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, auth;
 
 CREATE OR REPLACE FUNCTION public.current_user_is_super_admin()
 RETURNS BOOLEAN AS $$
@@ -52,13 +52,28 @@ BEGIN
           AND role = 'SUPER_ADMIN'
     );
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, auth;
+
+CREATE OR REPLACE FUNCTION public.current_user_shares_company_with(p_target_user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1
+        FROM public.company_users cu1
+        JOIN public.company_users cu2 ON cu1.company_id = cu2.company_id
+        WHERE cu1.user_id = auth.uid()
+          AND cu1.status = 'active'
+          AND cu2.user_id = p_target_user_id
+          AND cu2.status = 'active'
+    );
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, auth;
 
 -- 3. POLICIES: COMPANIES
 CREATE POLICY pol_companies_select ON companies
 FOR SELECT USING (
     public.current_user_is_super_admin() OR
-    id IN (SELECT company_id FROM company_users WHERE user_id = auth.uid() AND status = 'active')
+    public.current_user_has_company_role(id, ARRAY['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'ACCOUNTANT', 'OPERATIONS', 'VIEWER'])
 );
 
 CREATE POLICY pol_companies_insert ON companies
@@ -77,12 +92,7 @@ CREATE POLICY pol_profiles_select ON profiles
 FOR SELECT USING (
     id = auth.uid() OR
     public.current_user_is_super_admin() OR
-    id IN (
-        SELECT cu2.user_id 
-        FROM company_users cu1
-        JOIN company_users cu2 ON cu1.company_id = cu2.company_id
-        WHERE cu1.user_id = auth.uid() AND cu1.status = 'active'
-    )
+    public.current_user_shares_company_with(id)
 );
 
 CREATE POLICY pol_profiles_update ON profiles
@@ -114,7 +124,7 @@ CREATE POLICY pol_company_users_select ON company_users
 FOR SELECT USING (
     user_id = auth.uid() OR
     public.current_user_is_super_admin() OR
-    company_id IN (SELECT company_id FROM company_users WHERE user_id = auth.uid() AND role IN ('SUPER_ADMIN', 'ADMIN') AND status = 'active')
+    public.current_user_has_company_role(company_id, ARRAY['SUPER_ADMIN', 'ADMIN'])
 );
 
 CREATE POLICY pol_company_users_write ON company_users

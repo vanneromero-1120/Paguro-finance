@@ -10,7 +10,7 @@ BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- Apply updated_at to mutable tables
 DO $$ 
@@ -26,6 +26,36 @@ BEGIN
         EXECUTE format('CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION set_updated_at_column();', tbl);
     END LOOP;
 END $$;
+
+-- 1b. AUTHORITATIVE LINE ITEM CALCULATIONS (SERVER-SIDE INTEGRITY)
+CREATE OR REPLACE FUNCTION calculate_sales_invoice_item_values()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.discount_amount := COALESCE(NEW.discount_amount, 0.00);
+    NEW.tax_amount := ROUND((NEW.quantity * NEW.unit_price - NEW.discount_amount) * NEW.tax_rate, 2);
+    NEW.line_total := ROUND(NEW.quantity * NEW.unit_price - NEW.discount_amount + NEW.tax_amount, 2);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SET search_path = public;
+
+DROP TRIGGER IF EXISTS trg_calc_sales_invoice_item_values ON sales_invoice_items;
+CREATE TRIGGER trg_calc_sales_invoice_item_values
+BEFORE INSERT OR UPDATE ON sales_invoice_items
+FOR EACH ROW EXECUTE FUNCTION calculate_sales_invoice_item_values();
+
+CREATE OR REPLACE FUNCTION calculate_purchase_document_item_values()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.tax_amount := ROUND((NEW.quantity * NEW.unit_price) * NEW.tax_rate, 2);
+    NEW.line_total := ROUND(NEW.quantity * NEW.unit_price + NEW.tax_amount, 2);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SET search_path = public;
+
+DROP TRIGGER IF EXISTS trg_calc_purchase_document_item_values ON purchase_document_items;
+CREATE TRIGGER trg_calc_purchase_document_item_values
+BEFORE INSERT OR UPDATE ON purchase_document_items
+FOR EACH ROW EXECUTE FUNCTION calculate_purchase_document_item_values();
 
 -- 2. SALES INVOICE TOTAL RECALCULATION FUNCTION
 CREATE OR REPLACE FUNCTION recalculate_sales_invoice_totals()
@@ -83,7 +113,7 @@ BEGIN
 
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 DROP TRIGGER IF EXISTS trg_recalc_sales_invoice_totals ON sales_invoice_items;
 CREATE TRIGGER trg_recalc_sales_invoice_totals
@@ -140,7 +170,7 @@ BEGIN
 
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 DROP TRIGGER IF EXISTS trg_recalc_purchase_document_totals ON purchase_document_items;
 CREATE TRIGGER trg_recalc_purchase_document_totals
@@ -198,7 +228,7 @@ BEGIN
 
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 DROP TRIGGER IF EXISTS trg_payment_allocation_sync ON payment_allocations;
 CREATE TRIGGER trg_payment_allocation_sync
@@ -250,7 +280,7 @@ BEGIN
         RETURN NEW;
     END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 DROP TRIGGER IF EXISTS trg_freeze_closed_period_sales ON sales_invoices;
 CREATE TRIGGER trg_freeze_closed_period_sales
@@ -275,7 +305,7 @@ BEGIN
 
     RETURN v_stock;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql STABLE SET search_path = public;
 
 -- 7. CROSS-COMPANY INTEGRITY GUARDS (PREVENTS CROSS-TENANT FOREIGN DATA LEAKS)
 CREATE OR REPLACE FUNCTION validate_cross_company_integrity()
@@ -323,11 +353,31 @@ BEGIN
                 RAISE EXCEPTION 'Cross-company violation: Supplier counterparty % does not belong to payment company %', NEW.counterparty_id, NEW.company_id;
             END IF;
         END IF;
+
+    ELSIF TG_TABLE_NAME = 'purchase_document_items' THEN
+        IF NEW.product_id IS NOT NULL THEN
+            SELECT pdoc.company_id INTO v_owner_company_id FROM purchase_documents pdoc WHERE pdoc.id = NEW.purchase_document_id;
+            IF NOT EXISTS (SELECT 1 FROM products p WHERE p.id = NEW.product_id AND p.company_id = v_owner_company_id) THEN
+                RAISE EXCEPTION 'Cross-company violation: Product % does not belong to purchase document company %', NEW.product_id, v_owner_company_id;
+            END IF;
+        END IF;
+
+    ELSIF TG_TABLE_NAME = 'payment_allocations' THEN
+        SELECT p.company_id INTO v_owner_company_id FROM payments p WHERE p.id = NEW.payment_id;
+        IF NEW.document_type = 'sales_invoice' THEN
+            IF NOT EXISTS (SELECT 1 FROM sales_invoices inv WHERE inv.id = NEW.document_id AND inv.company_id = v_owner_company_id) THEN
+                RAISE EXCEPTION 'Cross-company violation: Invoice % does not belong to payment company %', NEW.document_id, v_owner_company_id;
+            END IF;
+        ELSIF NEW.document_type = 'purchase_document' THEN
+            IF NOT EXISTS (SELECT 1 FROM purchase_documents pdoc WHERE pdoc.id = NEW.document_id AND pdoc.company_id = v_owner_company_id) THEN
+                RAISE EXCEPTION 'Cross-company violation: Purchase document % does not belong to payment company %', NEW.document_id, v_owner_company_id;
+            END IF;
+        END IF;
     END IF;
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 DROP TRIGGER IF EXISTS trg_val_cross_company_invoices ON sales_invoices;
 CREATE TRIGGER trg_val_cross_company_invoices
@@ -344,6 +394,11 @@ CREATE TRIGGER trg_val_cross_company_invoice_items
 BEFORE INSERT OR UPDATE ON sales_invoice_items
 FOR EACH ROW EXECUTE FUNCTION validate_cross_company_integrity();
 
+DROP TRIGGER IF EXISTS trg_val_cross_company_purchase_items ON purchase_document_items;
+CREATE TRIGGER trg_val_cross_company_purchase_items
+BEFORE INSERT OR UPDATE ON purchase_document_items
+FOR EACH ROW EXECUTE FUNCTION validate_cross_company_integrity();
+
 DROP TRIGGER IF EXISTS trg_val_cross_company_movements ON inventory_movements;
 CREATE TRIGGER trg_val_cross_company_movements
 BEFORE INSERT OR UPDATE ON inventory_movements
@@ -353,3 +408,21 @@ DROP TRIGGER IF EXISTS trg_val_cross_company_payments ON payments;
 CREATE TRIGGER trg_val_cross_company_payments
 BEFORE INSERT OR UPDATE ON payments
 FOR EACH ROW EXECUTE FUNCTION validate_cross_company_integrity();
+
+DROP TRIGGER IF EXISTS trg_val_cross_company_allocations ON payment_allocations;
+CREATE TRIGGER trg_val_cross_company_allocations
+BEFORE INSERT OR UPDATE ON payment_allocations
+FOR EACH ROW EXECUTE FUNCTION validate_cross_company_integrity();
+
+-- 8. AUDIT LOG IMMUTABILITY TRIGGER (DATABASE ENGINE LEVEL PROTECTION)
+CREATE OR REPLACE FUNCTION prevent_audit_log_tampering()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Audit logs are strictly immutable and cannot be modified or deleted.';
+END;
+$$ LANGUAGE plpgsql SET search_path = public;
+
+DROP TRIGGER IF EXISTS trg_prevent_audit_log_tampering ON audit_logs;
+CREATE TRIGGER trg_prevent_audit_log_tampering
+BEFORE UPDATE OR DELETE ON audit_logs
+FOR EACH ROW EXECUTE FUNCTION prevent_audit_log_tampering();

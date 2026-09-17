@@ -92,3 +92,39 @@ This document tracks significant architectural and technical decisions made duri
 - **Alternatives Considered**: Merging accounting into the `FINANCE` role (violates separation between operational spending and external fiscal audit).
 - **Impact**: Clear, enforceable authorization boundary matching real-world corporate workflows.
 
+---
+
+## ADR-011: Relational Views Security Invoker Enforcement (PostgreSQL 15+)
+- **Date**: 2026-09-17
+- **Decision**: Define all PostgreSQL relational views (`company_members`, `invoices`, `invoice_items`, `expenses`, `expense_items`) with `WITH (security_invoker = true)`.
+- **Reason**: By default in PostgreSQL, views execute with the privileges of the view owner (postgres), which silently circumvents Row Level Security (RLS) on underlying tables. Enforcing `security_invoker = true` guarantees that the querying user's active RLS policies are authoritatively evaluated.
+- **Alternatives Considered**: Omit views and require callers to query base tables only (loses compatibility with established blueprint naming conventions).
+- **Impact**: Eliminates privilege escalation risk and ensures tenant data isolation across all view queries.
+
+---
+
+## ADR-012: Server-Side Authoritative Line-Item Calculations and Tamper-Proof Audit Triggers
+- **Date**: 2026-09-17
+- **Decision**: Implement `BEFORE INSERT OR UPDATE` triggers on `sales_invoice_items` and `purchase_document_items` to authoritatively compute line totals and taxes from base inputs (`quantity`, `unit_price`, `discount_amount`, `tax_rate`), and deploy a strict `BEFORE UPDATE OR DELETE` exception trigger on `audit_logs`.
+- **Reason**: Financial calculations must never rely on insecure or untrusted client-side mathematics. Audit logs must be structurally append-only and immune to modification or deletion even by privileged roles.
+- **Alternatives Considered**: Calculating line totals purely in application JavaScript (vulnerable to API tampering and floating-point drift).
+- **Impact**: Complete server-side fiscal mathematical integrity and an immutable, legally defensible audit trail.
+
+---
+
+## ADR-013: Hardened SECURITY DEFINER Search Path for Multi-Tenant Auth Functions
+- **Date**: 2026-09-17
+- **Decision**: Explicitly configure `SET search_path = public, auth` on all `SECURITY DEFINER` helper functions (`current_user_has_company_role`, `current_user_is_super_admin`).
+- **Reason**: Prevents search-path hijacking vulnerabilities where a malicious user could shadow schemas or functions, and satisfies Supabase Security Advisor and PostgreSQL hardening standards.
+- **Alternatives Considered**: Using default dynamic search path (flagged by security linters and vulnerable to search path spoofing).
+- **Impact**: Robust cryptographic isolation and automated compliance with Supabase Security Advisories.
+
+---
+
+## ADR-014: Non-Recursive Row Level Security Policy Expressions for Multi-Tenant Membership
+- **Date**: 2026-09-17
+- **Decision**: Avoid embedding raw SQL subqueries that query self-referencing tables (`company_users`, `companies`, `profiles`) directly inside their own RLS `USING` clauses. Instead, route membership and tenant verification through `SECURITY DEFINER` helper functions (`current_user_has_company_role`, `current_user_is_super_admin`, `current_user_shares_company_with`).
+- **Reason**: Direct subqueries on tables with active RLS policies trigger re-evaluation of the same policy during recursive execution, leading to PostgreSQL error `42P17: infinite recursion detected in policy for relation "company_users"`. `SECURITY DEFINER` functions bypass RLS inside their controlled execution frame, completely preventing recursion cycles while retaining strict caller-based permission evaluation (`auth.uid()`).
+- **Alternatives Considered**: Disabling RLS on `company_users` (unacceptable multi-tenant security vulnerability).
+- **Impact**: Zero recursion errors, fast evaluation using table primary/unique indexes, and complete protection of tenant membership data.
+
