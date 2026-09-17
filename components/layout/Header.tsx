@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { CompanySelector } from './CompanySelector';
-import { Shield, Bell } from 'lucide-react';
+import { Shield, Bell, LogOut } from 'lucide-react';
 
 interface HeaderProps {
   activeCompanyId: string;
@@ -54,7 +54,7 @@ export const Header: React.FC<HeaderProps> = ({
           <Bell size={16} />
         </button>
 
-        {/* User Badge */}
+        {/* User Badge & Logout */}
         <div
           style={{
             display: 'flex',
@@ -92,6 +92,31 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Logout Button */}
+        <form action={async () => {
+          const { logoutAction } = await import('@/lib/auth/actions');
+          await logoutAction();
+        }}>
+          <button
+            type="submit"
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: '8px',
+              padding: '8px',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'var(--transition-smooth)',
+            }}
+            title="Cerrar sesión segura"
+          >
+            <LogOut size={16} />
+          </button>
+        </form>
       </div>
     </header>
   );

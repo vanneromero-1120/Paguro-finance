@@ -11,24 +11,59 @@ VALUES
     ('c3333333-3333-3333-3333-333333333333', 'Pagurai Artificial Intelligence S.A.S.', 'Pagurai', '901.992.871-9', 'COL', 'COP', 'America/Bogota', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
--- 2. DEMO USER PROFILES
+-- 2. RBAC ROLES & PERMISSIONS
+INSERT INTO roles (code, name, description, is_system)
+VALUES
+    ('SUPER_ADMIN', 'Super Administrador', 'Acceso total y configuración de infraestructura global', TRUE),
+    ('ADMIN', 'Administrador Financiero', 'Control operativo completo de la empresa y gestión de usuarios', TRUE),
+    ('FINANCE', 'Finanzas & Tesorería', 'Gestión de facturas, compras, cobros y pagos operativos', TRUE),
+    ('ACCOUNTANT', 'Contabilidad & Auditoría', 'Revisión y cierre de periodos de IVA, auditoría y reportes fiscales', TRUE),
+    ('OPERATIONS', 'Operaciones & Inventario', 'Gestión de catálogo de productos y movimientos de stock', TRUE),
+    ('VIEWER', 'Consulta & Dirección', 'Acceso de solo lectura a métricas, informes y documentos', TRUE)
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO permissions (code, name, module, description)
+VALUES
+    ('view_dashboard', 'Ver Dashboard', 'dashboard', 'Acceso al panel de control y métricas'),
+    ('view_invoices', 'Ver Facturas', 'sales', 'Consulta de facturas de venta y saldos'),
+    ('create_invoices', 'Crear Facturas', 'sales', 'Emisión y redacción de facturas'),
+    ('void_invoices', 'Anular Facturas', 'sales', 'Anulación de facturas emitidas'),
+    ('view_expenses', 'Ver Gastos', 'purchases', 'Consulta de compras y gastos'),
+    ('create_expenses', 'Crear Gastos', 'purchases', 'Registro de gastos y facturas recibidas'),
+    ('view_payments', 'Ver Pagos', 'payments', 'Consulta de cobros y pagos'),
+    ('create_payments', 'Registrar Pagos', 'payments', 'Registro de cobros y desembolsos'),
+    ('view_inventory', 'Ver Inventario', 'inventory', 'Consulta de existencias y movimientos'),
+    ('manage_inventory', 'Gestionar Inventario', 'inventory', 'Registro de ajustes y movimientos de stock'),
+    ('view_taxes', 'Ver Impuestos', 'taxes', 'Consulta de resumen de IVA por periodo'),
+    ('manage_taxes', 'Gestionar IVA', 'taxes', 'Registro de ajustes y revisión de IVA'),
+    ('close_taxes', 'Cerrar Periodos', 'taxes', 'Cierre y reapertura formal de periodos de IVA'),
+    ('view_reports', 'Ver Reportes', 'reports', 'Visualización de informes financieros'),
+    ('export_reports', 'Exportar Reportes', 'reports', 'Exportación de datos a CSV y formatos externos'),
+    ('manage_users', 'Gestionar Usuarios', 'settings', 'Invitación y asignación de roles de empresa'),
+    ('manage_company', 'Gestionar Empresa', 'settings', 'Edición de datos legales y configuración'),
+    ('view_audit_log', 'Ver Auditoría', 'audit', 'Inspección de la bitácora inmutable')
+ON CONFLICT (code) DO NOTHING;
+
+-- 3. DEMO USER PROFILES
 INSERT INTO profiles (id, email, full_name, is_active)
 VALUES
     ('u1111111-1111-1111-1111-111111111111', 'admin@pagurocorp.com', 'Carlos Mendoza (Admin Paguro)', TRUE),
     ('u2222222-2222-2222-2222-222222222222', 'finance@pagurocorp.com', 'Valeria Rios (Finanzas Paguro)', TRUE),
     ('u3333333-3333-3333-3333-333333333333', 'ops@pagurocorp.com', 'Mateo Gómez (Operaciones)', TRUE),
-    ('u4444444-4444-4444-4444-444444444444', 'viewer@pagurocorp.com', 'Sofia Herrera (Dirección)', TRUE)
+    ('u4444444-4444-4444-4444-444444444444', 'viewer@pagurocorp.com', 'Sofia Herrera (Dirección)', TRUE),
+    ('u5555555-5555-5555-5555-555555555555', 'accountant@pagurocorp.com', 'Laura Restrepo (Contadora Revisor Fiscal)', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
--- 3. COMPANY USER MEMBERSHIPS
+-- 4. COMPANY USER MEMBERSHIPS
 INSERT INTO company_users (id, company_id, user_id, role, status)
 VALUES
     ('cu111111-1111-1111-1111-111111111111', 'c1111111-1111-1111-1111-111111111111', 'u1111111-1111-1111-1111-111111111111', 'ADMIN', 'active'),
     ('cu222222-2222-2222-2222-222222222222', 'c1111111-1111-1111-1111-111111111111', 'u2222222-2222-2222-2222-222222222222', 'FINANCE', 'active'),
     ('cu333333-3333-3333-3333-333333333333', 'c1111111-1111-1111-1111-111111111111', 'u3333333-3333-3333-3333-333333333333', 'OPERATIONS', 'active'),
     ('cu444444-4444-4444-4444-444444444444', 'c1111111-1111-1111-1111-111111111111', 'u4444444-4444-4444-4444-444444444444', 'VIEWER', 'active'),
+    ('cu555555-5555-5555-5555-555555555555', 'c1111111-1111-1111-1111-111111111111', 'u5555555-5555-5555-5555-555555555555', 'ACCOUNTANT', 'active'),
     -- Carlos Mendoza is also Admin in Pagureo
-    ('cu555555-5555-5555-5555-555555555555', 'c2222222-2222-2222-2222-222222222222', 'u1111111-1111-1111-1111-111111111111', 'ADMIN', 'active')
+    ('cu666666-6666-6666-6666-666666666666', 'c2222222-2222-2222-2222-222222222222', 'u1111111-1111-1111-1111-111111111111', 'ADMIN', 'active')
 ON CONFLICT (company_id, user_id) DO NOTHING;
 
 -- 4. TAX RATES FOR PAGURO CORP

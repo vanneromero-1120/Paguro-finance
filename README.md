@@ -35,12 +35,12 @@ Paguro-Finance/
 ├── docs/                      # Technical architecture documentation
 │   ├── architecture.md        # System layers, boundaries & tenant model
 │   ├── database-schema.md     # Relational schema DDL specifications
-│   ├── permissions.md         # RBAC matrix (ADMIN, FINANCE, OPS, VIEWER)
+│   ├── permissions.md         # RBAC matrix (SUPER_ADMIN, ADMIN, FINANCE, ACCOUNTANT, OPS, VIEWER)
 │   ├── financial-rules.md     # Exact rounding, invariants, voiding rules
 │   ├── business-rules.md      # Movement deltas, terms, sequences
 │   ├── security.md            # RLS policies, token handling, storage
-│   ├── implementation-plan.md # 21-phase implementation roadmap
-│   ├── decisions.md           # Architecture Decision Records (ADRs)
+│   ├── implementation-plan.md # Phased implementation roadmap & status
+│   ├── decisions.md           # Architecture Decision Records (ADRs 001-010)
 │   └── testing-plan.md        # Verification plan & test coverage
 ├── database/
 │   ├── migrations/            # Versioned PostgreSQL DDL & Triggers
@@ -53,7 +53,11 @@ Paguro-Finance/
 ├── app/                       # Next.js 14+ App Router
 │   ├── layout.tsx             # Root layout with AppShell
 │   ├── page.tsx               # Redirect to dashboard
+│   ├── auth/callback/         # Supabase token exchange callback
 │   ├── login/                 # Authentication & demo presets
+│   ├── forgot-password/       # Password recovery request flow
+│   ├── reset-password/        # Secure credential update flow
+│   ├── unauthorized/          # 403 Security boundary screen
 │   ├── dashboard/             # Executive KPI dashboard
 │   ├── sales/                 # Invoices, Customers, Collections
 │   ├── purchases/             # Expenses, Suppliers, Disbursements
@@ -62,10 +66,16 @@ Paguro-Finance/
 │   ├── reports/               # Financial reports & CSV exports
 │   ├── documents/             # Storage document explorer
 │   └── settings/              # Companies, Users, Audit log
+├── middleware.ts              # Root session token refresher & route protection
 ├── components/                # Reusable UI & Layout components
-├── lib/                       # Financial engines, formatters, Supabase clients
+├── lib/                       # Core enterprise engines & utilities
+│   ├── auth/                  # Permissions, Server Auth, & Actions
+│   ├── finance/               # Financial math & rounding engine
+│   ├── storage/               # Private document storage (signed URLs)
+│   ├── supabase/              # Browser, server, admin, & middleware clients
+│   └── utils/                 # Formatting & currency helpers
 ├── types/                     # Database and domain TypeScript types
-└── tests/                     # Automated Vitest suites
+└── tests/                     # Automated Vitest suites (41 tests)
 ```
 
 ---

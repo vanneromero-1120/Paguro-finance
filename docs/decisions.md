@@ -55,3 +55,40 @@ This document tracks significant architectural and technical decisions made duri
 - **Reason**: Prevents silent modifications to periods that have already been reviewed or filed with tax authorities.
 - **Alternatives Considered**: Unrestricted historical editing (creates discrepancies with previously prepared tax reports).
 - **Impact**: High compliance integrity and trust for accounting stakeholders.
+
+---
+
+## ADR-007: Relational Compatibility Views for Blueprint and Standard Conventions
+- **Date**: 2026-09-17
+- **Decision**: Provide PostgreSQL relational views `company_members` (aliasing `company_users`), `invoices` (aliasing `sales_invoices`), `invoice_items` (aliasing `sales_invoice_items`), `expenses` (aliasing `purchase_documents`), and `expense_items` (aliasing `purchase_document_items`).
+- **Reason**: Harmonizes database naming conventions across both the original blueprint and prompt specifications without duplicating tables or compromising foreign key integrity.
+- **Alternatives Considered**: Renaming tables destructively (breaks existing documentation and blueprint traceability).
+- **Impact**: Code and third-party integrations can seamlessly query either nomenclature transparently.
+
+---
+
+## ADR-008: Database-Enforced Cross-Tenant Foreign-Key Validation Triggers
+- **Date**: 2026-09-17
+- **Decision**: Implement PostgreSQL `BEFORE INSERT OR UPDATE` triggers (`validate_cross_company_integrity()`) on `sales_invoices`, `purchase_documents`, `payment_allocations`, and `inventory_movements` that reject any attempt to link a record from Company A with a customer, supplier, product, or document from Company B.
+- **Reason**: Standard foreign keys enforce that a customer exists, but cannot inherently enforce that `customer.company_id == invoice.company_id`. Triggers close this multi-tenant vulnerability at the PostgreSQL engine level.
+- **Alternatives Considered**: Relying purely on application-level or API checks (vulnerable to direct SQL or compromised API calls).
+- **Impact**: Impossible to cross-contaminate corporate identities even if client code is bypassed.
+
+---
+
+## ADR-009: Private Financial Storage Architecture with Cryptographic Signed URLs
+- **Date**: 2026-09-17
+- **Decision**: Store all financial attachments, tax certificates, and invoices in a private Supabase Storage bucket (`financial-documents`) organized by `{company_id}/{entity_type}/{entity_id}/{filename}`. Direct public URLs are disabled. Access is exclusively granted via short-lived HMAC-signed URLs (default 300 seconds).
+- **Reason**: Commercial and fiscal confidentiality requires that documents cannot be enumerated or downloaded without active company authorization.
+- **Alternatives Considered**: Public buckets with unguessable UUID names (leaks URLs via browser histories, logs, and indexing).
+- **Impact**: Strict enterprise privacy, auditable access, and compliance with Colombian data protection regulations.
+
+---
+
+## ADR-010: Six-Tier Granular Role-Based Access Control (RBAC)
+- **Date**: 2026-09-17
+- **Decision**: Standardize on six distinct user roles: `SUPER_ADMIN`, `ADMIN`, `FINANCE`, `ACCOUNTANT`, `OPERATIONS`, and `VIEWER`. Specifically, `ACCOUNTANT` possesses rights to view transactions, manage VAT/taxes, perform period closes, and export financial statements, but is prohibited from creating sales invoices, expenses, or administering company users.
+- **Reason**: Segregation of duties (SoD) is essential for corporate governance; accountants audit and certify taxes but should not generate operational invoices or modify user privileges.
+- **Alternatives Considered**: Merging accounting into the `FINANCE` role (violates separation between operational spending and external fiscal audit).
+- **Impact**: Clear, enforceable authorization boundary matching real-world corporate workflows.
+

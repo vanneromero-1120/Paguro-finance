@@ -11,10 +11,15 @@ dist/
 
 # Environment files & Supabase secrets
 .env
+.env.local
 .env*.local
 .env.production
 .env.staging
 *.secret.json
+*.key
+*.pem
+*service_role*
+*service-role*
 supabase/.temp/
 
 # Testing & Coverage

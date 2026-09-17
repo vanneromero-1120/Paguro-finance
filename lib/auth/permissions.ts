@@ -36,6 +36,16 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'view_reports', 'export_reports',
     'view_audit_log',
   ],
+  ACCOUNTANT: [
+    'view_dashboard',
+    'view_invoices',
+    'view_expenses',
+    'view_payments',
+    'view_inventory',
+    'view_taxes', 'manage_taxes', 'close_taxes',
+    'view_reports', 'export_reports',
+    'view_audit_log',
+  ],
   OPERATIONS: [
     'view_dashboard',
     'view_invoices',

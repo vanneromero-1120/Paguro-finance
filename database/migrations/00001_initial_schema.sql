@@ -33,12 +33,39 @@ CREATE TABLE IF NOT EXISTS profiles (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 3. COMPANY MEMBERSHIP & ROLES
+-- 3. RBAC: ROLES & PERMISSIONS
+CREATE TABLE IF NOT EXISTS roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    is_system BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(100) NOT NULL UNIQUE,
+    name VARCHAR(150) NOT NULL,
+    module VARCHAR(50) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    role_code VARCHAR(50) NOT NULL REFERENCES roles(code) ON DELETE CASCADE,
+    permission_code VARCHAR(100) NOT NULL REFERENCES permissions(code) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_role_permission UNIQUE(role_code, permission_code)
+);
+
+-- 4. COMPANY MEMBERSHIP & ROLES
 CREATE TABLE IF NOT EXISTS company_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
     user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'VIEWER')),
+    role VARCHAR(50) NOT NULL CHECK (role IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'ACCOUNTANT', 'OPERATIONS', 'VIEWER')),
     status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('invited', 'active', 'suspended')),
     invited_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_access_at TIMESTAMPTZ,
@@ -46,6 +73,9 @@ CREATE TABLE IF NOT EXISTS company_users (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_company_user UNIQUE(company_id, user_id)
 );
+
+-- Compatibility view for company_members
+CREATE OR REPLACE VIEW company_members AS SELECT * FROM company_users;
 
 -- 4. CUSTOMERS
 CREATE TABLE IF NOT EXISTS customers (
@@ -341,3 +371,11 @@ CREATE INDEX IF NOT EXISTS idx_tax_periods_lookup ON tax_periods(company_id, tax
 CREATE INDEX IF NOT EXISTS idx_tax_adjustments_period ON tax_adjustments(tax_period_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_company_entity ON audit_logs(company_id, entity_type, entity_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_documents_entity ON documents(company_id, entity_type, entity_id);
+
+-- ============================================================================
+-- COMPATIBILITY VIEWS FOR CONVENIENCE
+-- ============================================================================
+CREATE OR REPLACE VIEW invoices AS SELECT * FROM sales_invoices;
+CREATE OR REPLACE VIEW invoice_items AS SELECT * FROM sales_invoice_items;
+CREATE OR REPLACE VIEW expenses AS SELECT * FROM purchase_documents;
+CREATE OR REPLACE VIEW expense_items AS SELECT * FROM purchase_document_items;

@@ -52,7 +52,7 @@ For all operational tables (`sales_invoices`, `purchase_documents`, `customers`,
    ```sql
    CREATE POLICY tenant_select_policy ON sales_invoices
    FOR SELECT USING (
-     auth.has_company_access(company_id, ARRAY['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'VIEWER'])
+     auth.has_company_access(company_id, ARRAY['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'ACCOUNTANT', 'OPERATIONS', 'VIEWER'])
    );
    ```
 2. **INSERT Policy**:
@@ -78,12 +78,44 @@ For all operational tables (`sales_invoices`, `purchase_documents`, `customers`,
    );
    ```
 
-### 2.3 Audit Logs Immutability
-Audit logs are append-only:
+### 2.3 Cross-Company Relational Integrity (Anti-Leakage Triggers)
+Standard SQL foreign keys enforce record existence, but cannot verify cross-tenant boundaries (e.g. linking an invoice of Company A with a customer of Company B).
+To enforce relational tenant boundaries at the PostgreSQL kernel level:
+```sql
+CREATE OR REPLACE FUNCTION validate_cross_company_integrity()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Customer cross-company validation on sales invoices
+  IF TG_TABLE_NAME = 'sales_invoices' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.customers c 
+      WHERE c.id = NEW.customer_id AND c.company_id = NEW.company_id
+    ) THEN
+      RAISE EXCEPTION 'CROSS_COMPANY_VIOLATION: Customer % does not belong to company %', NEW.customer_id, NEW.company_id;
+    END IF;
+  END IF;
+
+  -- Supplier cross-company validation on purchase documents
+  IF TG_TABLE_NAME = 'purchase_documents' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.suppliers s 
+      WHERE s.id = NEW.supplier_id AND s.company_id = NEW.company_id
+    ) THEN
+      RAISE EXCEPTION 'CROSS_COMPANY_VIOLATION: Supplier % does not belong to company %', NEW.supplier_id, NEW.company_id;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### 2.4 Audit Logs Immutability
+Audit logs are strictly append-only:
 ```sql
 CREATE POLICY audit_select_policy ON audit_logs
 FOR SELECT USING (
-  auth.has_company_access(company_id, ARRAY['SUPER_ADMIN', 'ADMIN'])
+  auth.has_company_access(company_id, ARRAY['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'])
 );
 
 CREATE POLICY audit_insert_policy ON audit_logs
@@ -98,7 +130,19 @@ FOR INSERT WITH CHECK (
 
 ## 3. Storage Security (Private Buckets)
 
-- Bucket: `financial-documents`
-- Public access: `FALSE`
-- Storage RLS Policy: Users can only upload and read documents located in folders matching `(storage.foldername(name))[1] = company_id` for companies where they hold an active membership.
-- Previews and downloads are delivered using short-lived signed URLs (expiry: 15 minutes).
+- **Bucket**: `financial-documents`
+- **Public Access**: `FALSE` (Strictly disabled)
+- **Path Convention**: `{company_id}/{entity_type}/{entity_id}/{timestamp}_{sanitized_filename}`
+- **Supported Entity Types**: `invoices`, `expenses`, `payments`, `customers`, `suppliers`, `tax_periods`.
+- **Storage RLS Policy**: Users can only upload and read documents located in folders matching `(storage.foldername(name))[1] = company_id` for companies where they hold an active membership.
+- **Access Protocol**: Time-limited HMAC-signed URLs generated via `createSignedUrl` with default TTL of 300 seconds (5 minutes). Permanent public URLs are prohibited.
+
+---
+
+## 4. Next.js Session & Middleware Route Protection
+
+- **Root Middleware (`middleware.ts`)**: Invokes `@supabase/ssr` to validate user session tokens via `supabase.auth.getUser()`.
+- **Protected Paths**: `/dashboard`, `/sales/*`, `/purchases/*`, `/inventory/*`, `/taxes/*`, `/reports/*`, `/documents/*`, `/settings/*`.
+- **Interception**: Unauthenticated access triggers immediate redirection to `/login?returnTo=[target]`.
+- **403 Boundary**: Insufficient roles or non-existent company memberships route users to the `/unauthorized` explanation screen with tenant switching options.
+

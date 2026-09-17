@@ -139,6 +139,22 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
+  {
+    id: 'cust-pagureo-1',
+    company_id: 'c2222222-2222-2222-2222-222222222222',
+    name: 'Cliente E-commerce Bogotá',
+    legal_name: 'Cliente E-commerce Bogotá S.A.S.',
+    identification_type: 'NIT',
+    tax_id: '901.555.444-1',
+    email: 'compras@cliente-ecom.co',
+    phone: '+57 (1) 400-0000',
+    city: 'Bogotá',
+    country: 'Colombia',
+    payment_terms_days: 15,
+    status: 'active',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
 ];
 
 export const INITIAL_SUPPLIERS: Supplier[] = [
@@ -170,6 +186,22 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     city: 'Barranquilla',
     country: 'Colombia',
     payment_terms_days: 15,
+    status: 'active',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'supp-pagureo-1',
+    company_id: 'c2222222-2222-2222-2222-222222222222',
+    name: 'Distribuidora Global Asia',
+    legal_name: 'Distribuidora Global Asia Ltda.',
+    identification_type: 'NIT',
+    tax_id: '901.888.777-2',
+    email: 'ventas@globalasia.com',
+    phone: '+57 (5) 300-1111',
+    city: 'Barranquilla',
+    country: 'Colombia',
+    payment_terms_days: 30,
     status: 'active',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -340,6 +372,26 @@ export const INITIAL_INVOICES: (SalesInvoice & { items: SalesInvoiceItem[] })[] 
       },
     ],
   },
+  {
+    id: 'inv33333-3333-3333-3333-333333333333',
+    company_id: 'c2222222-2222-2222-2222-222222222222',
+    invoice_number: 'PAG-ECOM-0001',
+    customer_id: 'cust-pagureo-1',
+    issue_date: '2026-09-11',
+    due_date: '2026-09-26',
+    currency_code: 'COP',
+    subtotal: 500000,
+    tax_total: 95000,
+    discount_total: 0,
+    total: 595000,
+    paid_total: 0,
+    balance_due: 595000,
+    status: 'issued',
+    notes: 'Pedido Pagureo Store',
+    created_at: '2026-09-11T10:00:00Z',
+    updated_at: '2026-09-11T10:00:00Z',
+    items: [],
+  },
 ];
 
 export const INITIAL_PURCHASES: (PurchaseDocument & { items: PurchaseDocumentItem[] })[] = [
@@ -504,6 +556,20 @@ export const INITIAL_TAX_PERIODS: TaxPeriod[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
+  {
+    id: 'tp222222-2222-2222-2222-222222222222',
+    company_id: 'c1111111-1111-1111-1111-111111111111',
+    tax_type: 'IVA',
+    period_start: '2026-07-01',
+    period_end: '2026-08-31',
+    generated_tax: 850000,
+    deductible_tax: 210000,
+    adjustments: 0,
+    net_tax: 640000,
+    status: 'closed',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
 ];
 
 export const INITIAL_DOCUMENTS: DocumentAttachment[] = [
@@ -561,3 +627,16 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
     created_at: '2026-09-12T15:00:00Z',
   },
 ];
+
+// Convenience aliases for testing and auth utilities
+export const mockCompanies = INITIAL_COMPANIES;
+export const mockCustomers = INITIAL_CUSTOMERS;
+export const mockSuppliers = INITIAL_SUPPLIERS;
+export const mockProducts = INITIAL_PRODUCTS;
+export const mockInventoryMovements = INITIAL_MOVEMENTS;
+export const mockInvoices = INITIAL_INVOICES;
+export const mockExpenses = INITIAL_PURCHASES;
+export const mockPayments = INITIAL_PAYMENTS;
+export const mockTaxPeriods = INITIAL_TAX_PERIODS;
+export const mockDocuments = INITIAL_DOCUMENTS;
+export const mockAuditLogs = INITIAL_AUDIT_LOGS;

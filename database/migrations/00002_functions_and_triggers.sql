@@ -276,3 +276,80 @@ BEGIN
     RETURN v_stock;
 END;
 $$ LANGUAGE plpgsql STABLE;
+
+-- 7. CROSS-COMPANY INTEGRITY GUARDS (PREVENTS CROSS-TENANT FOREIGN DATA LEAKS)
+CREATE OR REPLACE FUNCTION validate_cross_company_integrity()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_owner_company_id UUID;
+BEGIN
+    IF TG_TABLE_NAME = 'sales_invoices' THEN
+        SELECT company_id INTO v_owner_company_id FROM customers WHERE id = NEW.customer_id;
+        IF v_owner_company_id != NEW.company_id THEN
+            RAISE EXCEPTION 'Cross-company violation: Customer % does not belong to company %', NEW.customer_id, NEW.company_id;
+        END IF;
+
+    ELSIF TG_TABLE_NAME = 'purchase_documents' THEN
+        IF NEW.supplier_id IS NOT NULL THEN
+            SELECT company_id INTO v_owner_company_id FROM suppliers WHERE id = NEW.supplier_id;
+            IF v_owner_company_id != NEW.company_id THEN
+                RAISE EXCEPTION 'Cross-company violation: Supplier % does not belong to company %', NEW.supplier_id, NEW.company_id;
+            END IF;
+        END IF;
+
+    ELSIF TG_TABLE_NAME = 'sales_invoice_items' THEN
+        IF NEW.product_id IS NOT NULL THEN
+            SELECT i.company_id INTO v_owner_company_id FROM sales_invoices i WHERE i.id = NEW.invoice_id;
+            IF NOT EXISTS (SELECT 1 FROM products p WHERE p.id = NEW.product_id AND p.company_id = v_owner_company_id) THEN
+                RAISE EXCEPTION 'Cross-company violation: Product % does not belong to invoice company %', NEW.product_id, v_owner_company_id;
+            END IF;
+        END IF;
+
+    ELSIF TG_TABLE_NAME = 'inventory_movements' THEN
+        SELECT company_id INTO v_owner_company_id FROM products WHERE id = NEW.product_id;
+        IF v_owner_company_id != NEW.company_id THEN
+            RAISE EXCEPTION 'Cross-company violation: Product % does not belong to movement company %', NEW.product_id, NEW.company_id;
+        END IF;
+
+    ELSIF TG_TABLE_NAME = 'payments' THEN
+        IF NEW.counterparty_type = 'customer' THEN
+            SELECT company_id INTO v_owner_company_id FROM customers WHERE id = NEW.counterparty_id;
+            IF v_owner_company_id != NEW.company_id THEN
+                RAISE EXCEPTION 'Cross-company violation: Customer counterparty % does not belong to payment company %', NEW.counterparty_id, NEW.company_id;
+            END IF;
+        ELSIF NEW.counterparty_type = 'supplier' THEN
+            SELECT company_id INTO v_owner_company_id FROM suppliers WHERE id = NEW.counterparty_id;
+            IF v_owner_company_id != NEW.company_id THEN
+                RAISE EXCEPTION 'Cross-company violation: Supplier counterparty % does not belong to payment company %', NEW.counterparty_id, NEW.company_id;
+            END IF;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_val_cross_company_invoices ON sales_invoices;
+CREATE TRIGGER trg_val_cross_company_invoices
+BEFORE INSERT OR UPDATE ON sales_invoices
+FOR EACH ROW EXECUTE FUNCTION validate_cross_company_integrity();
+
+DROP TRIGGER IF EXISTS trg_val_cross_company_purchases ON purchase_documents;
+CREATE TRIGGER trg_val_cross_company_purchases
+BEFORE INSERT OR UPDATE ON purchase_documents
+FOR EACH ROW EXECUTE FUNCTION validate_cross_company_integrity();
+
+DROP TRIGGER IF EXISTS trg_val_cross_company_invoice_items ON sales_invoice_items;
+CREATE TRIGGER trg_val_cross_company_invoice_items
+BEFORE INSERT OR UPDATE ON sales_invoice_items
+FOR EACH ROW EXECUTE FUNCTION validate_cross_company_integrity();
+
+DROP TRIGGER IF EXISTS trg_val_cross_company_movements ON inventory_movements;
+CREATE TRIGGER trg_val_cross_company_movements
+BEFORE INSERT OR UPDATE ON inventory_movements
+FOR EACH ROW EXECUTE FUNCTION validate_cross_company_integrity();
+
+DROP TRIGGER IF EXISTS trg_val_cross_company_payments ON payments;
+CREATE TRIGGER trg_val_cross_company_payments
+BEFORE INSERT OR UPDATE ON payments
+FOR EACH ROW EXECUTE FUNCTION validate_cross_company_integrity();

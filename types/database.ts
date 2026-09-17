@@ -3,8 +3,31 @@
 // Authoritative TypeScript typings reflecting PostgreSQL tables
 // ============================================================================
 
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'FINANCE' | 'OPERATIONS' | 'VIEWER';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'FINANCE' | 'ACCOUNTANT' | 'OPERATIONS' | 'VIEWER';
 export type UserStatus = 'invited' | 'active' | 'suspended';
+
+export interface Role {
+  id: string;
+  code: UserRole;
+  name: string;
+  description: string;
+  is_system: boolean;
+  created_at: string;
+}
+
+export interface PermissionRecord {
+  id: string;
+  code: string;
+  name: string;
+  module: string;
+  description: string;
+  created_at: string;
+}
+
+export interface RolePermission {
+  role_code: UserRole;
+  permission_code: string;
+}
 
 export interface Company {
   id: string;
@@ -41,6 +64,8 @@ export interface CompanyUser {
   created_at: string;
   updated_at: string;
 }
+
+export type CompanyMember = CompanyUser;
 
 export interface Customer {
   id: string;
