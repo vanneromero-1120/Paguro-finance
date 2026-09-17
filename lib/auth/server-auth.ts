@@ -37,10 +37,10 @@ export async function getServerAuthSession(): Promise<AuthUser | null> {
         .from('company_users')
         .select('company_id, role, status, companies (*)')
         .eq('user_id', user.id)
-        .eq('status', 'ACTIVE');
+        .in('status', ['active', 'ACTIVE']);
 
       const companiesList = (memberships || [])
-        .filter((m: any) => m.companies && m.status === 'ACTIVE')
+        .filter((m: any) => m.companies && (m.status === 'active' || m.status === 'ACTIVE'))
         .map((m: any) => ({
           company: m.companies,
           role: m.role as UserRole,

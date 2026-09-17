@@ -13,6 +13,7 @@ export interface AuthActionResult {
   success: boolean;
   error?: string;
   message?: string;
+  redirectTo?: string;
 }
 
 /**
@@ -30,49 +31,30 @@ export async function loginAction(formData: FormData): Promise<AuthActionResult>
   const supabase = createServerSupabaseClient();
   const cookieStore = cookies();
 
-  if (supabase) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (!error && data.user) {
-      // Clear demo cookies if present
-      cookieStore.delete('paguro_demo_session');
-      cookieStore.delete('paguro_demo_role');
-      redirect(returnTo);
-    }
-
-    // If Supabase returned an error and it's not a known demo user, return the real error
-    const isDemoEmail = email.endsWith('@pagurocorp.com');
-    if (!isDemoEmail) {
-      return { success: false, error: error?.message || 'Credenciales de acceso inválidas.' };
-    }
+  if (!supabase) {
+    console.error('[loginAction] Supabase client is not configured (missing URL or anon key)');
+    return { success: false, error: 'Error del sistema: Cliente Supabase no configurado.' };
   }
 
-  // Fallback: Local offline demo session for development/demo purposes
-  let role: UserRole = 'ADMIN';
-  if (email.includes('superadmin')) role = 'SUPER_ADMIN';
-  else if (email.includes('accountant')) role = 'ACCOUNTANT';
-  else if (email.includes('finance')) role = 'FINANCE';
-  else if (email.includes('ops')) role = 'OPERATIONS';
-  else if (email.includes('viewer')) role = 'VIEWER';
-
-  cookieStore.set('paguro_demo_session', email, {
-    path: '/',
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+  console.log(`[loginAction] Authenticating with Supabase Auth: ${email}`);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
   });
 
-  cookieStore.set('paguro_demo_role', role, {
-    path: '/',
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7,
-  });
+  if (error) {
+    console.warn(`[loginAction] Supabase auth rejected for ${email}: ${error.message} (status: ${error.status})`);
+    return { success: false, error: error.message || 'Credenciales de acceso inválidas.' };
+  }
 
-  redirect(returnTo);
+  if (data.user) {
+    console.log(`[loginAction] Authentication successful for user ${data.user.id} (${data.user.email})`);
+    cookieStore.delete('paguro_demo_session');
+    cookieStore.delete('paguro_demo_role');
+    return { success: true, message: 'Inicio de sesión exitoso.', redirectTo: returnTo };
+  }
+
+  return { success: false, error: 'No se pudo establecer la sesión con el servidor.' };
 }
 
 /**

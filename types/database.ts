@@ -87,6 +87,36 @@ export interface Customer {
   created_by?: string | null;
 }
 
+export interface CreateCustomerInput {
+  name: string;
+  legal_name?: string | null;
+  identification_type: string;
+  tax_id: string;
+  email?: string | null;
+  phone?: string | null;
+  billing_address?: string | null;
+  city?: string | null;
+  country?: string;
+  payment_terms_days?: number;
+  notes?: string | null;
+  status?: 'active' | 'inactive';
+}
+
+export interface UpdateCustomerInput {
+  name?: string;
+  legal_name?: string | null;
+  identification_type?: string;
+  tax_id?: string;
+  email?: string | null;
+  phone?: string | null;
+  billing_address?: string | null;
+  city?: string | null;
+  country?: string;
+  payment_terms_days?: number;
+  notes?: string | null;
+  status?: 'active' | 'inactive';
+}
+
 export interface Supplier {
   id: string;
   company_id: string;
@@ -105,6 +135,36 @@ export interface Supplier {
   created_at: string;
   updated_at: string;
   created_by?: string | null;
+}
+
+export interface CreateSupplierInput {
+  name: string;
+  legal_name?: string | null;
+  identification_type: string;
+  tax_id: string;
+  email?: string | null;
+  phone?: string | null;
+  billing_address?: string | null;
+  city?: string | null;
+  country?: string;
+  payment_terms_days?: number;
+  notes?: string | null;
+  status?: 'active' | 'inactive';
+}
+
+export interface UpdateSupplierInput {
+  name?: string;
+  legal_name?: string | null;
+  identification_type?: string;
+  tax_id?: string;
+  email?: string | null;
+  phone?: string | null;
+  billing_address?: string | null;
+  city?: string | null;
+  country?: string;
+  payment_terms_days?: number;
+  notes?: string | null;
+  status?: 'active' | 'inactive';
 }
 
 export interface TaxRate {

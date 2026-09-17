@@ -13,8 +13,8 @@ function LoginForm() {
   const returnTo = searchParams.get('returnTo') || '/dashboard';
   const urlError = searchParams.get('error');
 
-  const [email, setEmail] = useState('admin@pagurocorp.com');
-  const [password, setPassword] = useState('Password123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
     urlError === 'auth_callback_failed' ? 'El enlace de autenticación ha caducado o es inválido.' : null
@@ -35,13 +35,13 @@ function LoginForm() {
       if (res && !res.success && res.error) {
         setErrorMessage(res.error);
         setLoading(false);
+      } else if (res && res.success) {
+        window.location.href = res.redirectTo || returnTo;
       }
     } catch (err: any) {
-      // Next.js redirect throws an internal error in Server Actions which is caught here
-      if (err?.message && !err.message.includes('NEXT_REDIRECT')) {
-        setErrorMessage(err.message || 'Error al procesar el inicio de sesión.');
-        setLoading(false);
-      }
+      console.error('[Login] Unexpected submission error:', err);
+      setErrorMessage(err?.message || 'Error al procesar el inicio de sesión.');
+      setLoading(false);
     }
   };
 
@@ -137,7 +137,7 @@ function LoginForm() {
         )}
 
         {/* Login Form */}
-        <form onSubmit={handleLogin}>
+        <form method="POST" onSubmit={handleLogin}>
           <div className="form-group">
             <label className="form-label">Correo Electrónico Corporativo</label>
             <input

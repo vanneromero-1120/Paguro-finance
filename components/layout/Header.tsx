@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { CompanySelector } from './CompanySelector';
 import { Shield, Bell, LogOut } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 interface HeaderProps {
   activeCompanyId: string;
@@ -19,6 +20,33 @@ export const Header: React.FC<HeaderProps> = ({
   userEmail = 'admin@pagurocorp.com',
   userRole = 'ADMIN',
 }) => {
+  const [userState, setUserState] = useState<{ email: string; role: string; name: string } | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      const { data: membership } = await supabase
+        .from('company_users')
+        .select('role')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'ACTIVE'])
+        .single();
+
+      setUserState({
+        email: user.email || '',
+        name: profile?.full_name || user.email?.split('@')[0] || 'Usuario',
+        role: membership?.role || 'SUPER_ADMIN',
+      });
+    });
+  }, []);
+
+  const displayEmail = userState?.email || userEmail;
+  const displayRole = userState?.role || userRole;
+  const displayName = userState?.name || displayEmail.split('@')[0];
   return (
     <header className="top-header">
       {/* Title / Breadcrumb */}
@@ -80,15 +108,15 @@ export const Header: React.FC<HeaderProps> = ({
               fontWeight: 700,
             }}
           >
-            {userEmail[0].toUpperCase()}
+            {displayEmail ? displayEmail[0].toUpperCase() : 'U'}
           </div>
           <div style={{ lineHeight: 1.2 }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-white)' }}>
-              {userEmail.split('@')[0]}
+              {displayName}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--text-dim)' }}>
               <Shield size={10} color="var(--color-success)" />
-              <span>{userRole}</span>
+              <span>{displayRole}</span>
             </div>
           </div>
         </div>

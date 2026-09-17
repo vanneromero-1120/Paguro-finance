@@ -128,3 +128,12 @@ This document tracks significant architectural and technical decisions made duri
 - **Alternatives Considered**: Disabling RLS on `company_users` (unacceptable multi-tenant security vulnerability).
 - **Impact**: Zero recursion errors, fast evaluation using table primary/unique indexes, and complete protection of tenant membership data.
 
+---
+
+## ADR-015: Production Authentication Integration and Enterprise Tenant Establishment
+- **Date**: 2026-09-17
+- **Decision**: Transition application authentication from offline fallback mocking to live Supabase SSR authentication backed by `auth.users`, `public.profiles`, and `public.company_users`. Establish `Paguro Corp S.A.S.` as the primary corporate tenant (`c1111111-1111-1111-1111-111111111111`), provision standard Colombian tax rates (`IVA_19`, `IVA_5`, `IVA_0`), configure the initial Super Admin (`superadmin@pagurocorp.com`), and deploy the `handle_new_user()` trigger for automated profile lifecycle synchronization.
+- **Reason**: Production enterprise operation requires strict cryptographic JWT validation, tenant isolation, and authoritative role mapping. Offline demo cookie fallbacks must never mask real authentication failures when Supabase is connected.
+- **Alternatives Considered**: Retaining offline demo fallback bypasses in production (unacceptable security vulnerability).
+- **Impact**: Zero-compromise security posture, guaranteed single-source-of-truth user credentials, and full RLS enforcement across all application interactions.
+
