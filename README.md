@@ -1,0 +1,137 @@
+# Paguro Finance
+
+**Paguro Finance** is a centralized, internal, multi-company financial management system built for **Paguro Corp** and its operating business units (Paguro Corp, Pagureo, Pagurai, and future units).
+
+It replaces fragmented spreadsheets and disconnected manual files with a single, immutable, and traceable operational source of truth for:
+- Sales Invoices and Accounts Receivable (CxC)
+- Purchases / Expenses and Accounts Payable (CxP)
+- Partial Payments and Multi-Document Allocations
+- Operational Value Added Tax (IVA) calculation and Period Management
+- Product Catalog and Ledger-Based Inventory Movements
+- Centralized Financial Document Repository
+- Executive Financial Dashboards and Tabular Reports
+- Role-Based Access Control (RBAC) and Row Level Security (RLS)
+- Comprehensive, Immutable Audit Logging
+
+> **Compliance Note**: Paguro Finance provides operational financial management. It does not replace certified double-entry accounting software or official DIAN tax filing declarations.
+
+---
+
+## 1. Technology Stack
+
+- **Frontend**: Next.js 14+ (App Router), React 18, TypeScript (Strict Mode)
+- **Styling**: Vanilla CSS Design Tokens, Modular CSS Variables, Tabular Financial Typography
+- **Backend**: Next.js Server Actions, Route Handlers, Supabase Client (`@supabase/ssr`)
+- **Database**: PostgreSQL 15+ hosted on Supabase with Row Level Security (RLS)
+- **Storage**: Supabase Storage (`financial-documents` private bucket with signed URLs)
+- **Testing**: Vitest automated test suite for financial math, inventory ledgers, and RBAC
+
+---
+
+## 2. Project Structure
+
+```
+Paguro-Finance/
+├── docs/                      # Technical architecture documentation
+│   ├── architecture.md        # System layers, boundaries & tenant model
+│   ├── database-schema.md     # Relational schema DDL specifications
+│   ├── permissions.md         # RBAC matrix (ADMIN, FINANCE, OPS, VIEWER)
+│   ├── financial-rules.md     # Exact rounding, invariants, voiding rules
+│   ├── business-rules.md      # Movement deltas, terms, sequences
+│   ├── security.md            # RLS policies, token handling, storage
+│   ├── implementation-plan.md # 21-phase implementation roadmap
+│   ├── decisions.md           # Architecture Decision Records (ADRs)
+│   └── testing-plan.md        # Verification plan & test coverage
+├── database/
+│   ├── migrations/            # Versioned PostgreSQL DDL & Triggers
+│   │   ├── 00001_initial_schema.sql
+│   │   ├── 00002_functions_and_triggers.sql
+│   │   ├── 00003_row_level_security.sql
+│   │   └── 00004_seed_demo_data.sql
+│   ├── policies/              # RLS catalog
+│   └── seed/                  # Modular demo seed scripts
+├── app/                       # Next.js 14+ App Router
+│   ├── layout.tsx             # Root layout with AppShell
+│   ├── page.tsx               # Redirect to dashboard
+│   ├── login/                 # Authentication & demo presets
+│   ├── dashboard/             # Executive KPI dashboard
+│   ├── sales/                 # Invoices, Customers, Collections
+│   ├── purchases/             # Expenses, Suppliers, Disbursements
+│   ├── inventory/             # Products catalog & Movement ledger
+│   ├── taxes/                 # IVA by period & adjustments
+│   ├── reports/               # Financial reports & CSV exports
+│   ├── documents/             # Storage document explorer
+│   └── settings/              # Companies, Users, Audit log
+├── components/                # Reusable UI & Layout components
+├── lib/                       # Financial engines, formatters, Supabase clients
+├── types/                     # Database and domain TypeScript types
+└── tests/                     # Automated Vitest suites
+```
+
+---
+
+## 3. Local Setup & Quickstart
+
+### Prerequisites
+- Node.js 18+ (Tested on Node.js v24.14.0)
+- npm 9+ (Tested on npm 11.9.0)
+- Supabase account (optional for local offline demo)
+
+### Installation
+```bash
+# Clone the repository
+git clone https://github.com/pagurocorp/paguro-finance.git
+cd Paguro-Finance
+
+# Install dependencies
+npm install
+```
+
+### Environment Configuration
+Copy `.env.example` to `.env.local`:
+```bash
+cp .env.example .env.local
+```
+Fill in your Supabase project credentials:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
+```
+*(Note: If no Supabase credentials are provided, Paguro Finance automatically operates using the rich in-memory operational seed store).*
+
+### Database Setup
+To deploy the database schema to your Supabase PostgreSQL database, execute the migration files sequentially in the Supabase SQL Editor:
+1. `database/migrations/00001_initial_schema.sql`
+2. `database/migrations/00002_functions_and_triggers.sql`
+3. `database/migrations/00003_row_level_security.sql`
+4. `database/migrations/00004_seed_demo_data.sql`
+
+---
+
+## 4. Development & Testing Commands
+
+```bash
+# Start Next.js development server
+npm run dev
+
+# Run automated test suites (financial math, payments, inventory, taxes, RBAC)
+npm test
+
+# Build for production
+npm run build
+```
+
+---
+
+## 5. Security & Row Level Security (RLS)
+
+- Every financial and operational entity includes a mandatory `company_id`.
+- Access is strictly governed by active user membership in `company_users`.
+- Cross-company data leaks are prevented at the database kernel level through RLS.
+- Financial audit logs in `audit_logs` are strictly append-only (no update or delete permitted).
+
+---
+
+## 6. License & Ownership
+Copyright © 2026 Paguro Corp. All rights reserved. Internal operational software.
