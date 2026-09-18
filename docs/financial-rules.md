@@ -63,6 +63,26 @@ $$
 4. **Void Reversal (`issued` -> `void`)**:
    When an issued invoice is voided, compensatory `RETURN_IN` movements (`quantity_delta = +abs(quantity)`) are created with `source_type = 'sales_invoice_void'` to restore physical stock balance.
 
+### 2.4 Purchases & Expenses Document Lifecycle (Accounts Payable)
+1. **Authoritative Foundation**:
+   Physical purchases and operational expenses share the `purchase_documents` and `purchase_document_items` schema, with views `expenses` and `expense_items` reflecting the exact same data.
+2. **External Vendor Reference**:
+   Purchases track the vendor's bill number (`document_number`), guaranteed unique per supplier and company via composite constraint `UNIQUE(company_id, supplier_id, document_number)`.
+3. **Calculation Invariants**:
+   - Line subtotal: $\text{line\_subtotal} = \text{round}(\text{quantity} \times \text{unit\_price}, 2)$.
+   - Line deductible tax: $\text{tax\_amount} = \text{round}(\text{line\_subtotal} \times \text{tax\_rate}, 2)$.
+   - Document Subtotal: $\text{subtotal} = \sum \text{line\_subtotal}$.
+   - Deductible Tax Total: $\text{deductible\_tax\_total} = \sum \text{tax\_amount}$.
+   - Net Payable Total: $\text{total} = \max(0, \text{round}(\text{subtotal} + \text{deductible\_tax\_total} - \text{retention\_total}, 2))$.
+   - Balance Due: $\text{balance\_due} = \text{total} - \text{paid\_total}$.
+4. **Lifecycle State Machine**:
+   - `draft`: Initial capture. Fully mutable by `SUPER_ADMIN`, `ADMIN`, `FINANCE`. No stock movement.
+   - `open`: Approved / finalized. Lines locked. Generates `PURCHASE` inventory movements (`quantity_delta = +quantity`) for physical inventory items.
+   - `partial`: Partial disbursement registered ($0 < \text{paid\_total} < \text{total}$).
+   - `paid`: Outstanding balance fully settled ($\text{balance\_due} = 0$).
+   - `void`: Annulled. Forbidden if $\text{paid\_total} > 0$. Reverses stock reception with compensatory `RETURN_OUT` movements (`quantity_delta = -quantity`).
+5. **Accounts Payable Disbursements**:
+   Disbursements are tracked via outbound `payments` linked through `payment_allocations` (`document_type = 'purchase_document'`). The trigger `trg_payment_allocation_sync` maintains `paid_total` and `balance_due`. Overpayment ($\text{amount} > \text{balance\_due}$) is rejected server-side.
 
 ---
 

@@ -161,4 +161,18 @@ This document tracks significant architectural and technical decisions made duri
 - **Alternatives Considered**: Frontend-generated invoice numbers (rejected due to collision risk); direct destructive deletion of invoices (rejected to preserve legal financial audit trails).
 - **Impact**: Zero phantom invoice numbers, mathematically indisputable line item taxes, automated stock decrement/increment, and complete company isolation.
 
+## ADR-018: Purchase Documents, Accounts Payable (CxP), Deductible IVA, Withholding Tax, and Inventory Reception
+- **Date**: 2026-09-17
+- **Decision**: Decouple Purchases and Expenses completely from `mock-store.ts` and transition to the live Supabase architecture (`purchase_documents`, `purchase_document_items`, `payments`, `payment_allocations`, and `inventory_movements`).
+  1. **Unified Architecture**: `purchase_documents` and `purchase_document_items` serve as the authoritative foundation for both physical vendor goods purchases and operational expenses (with `expenses` and `expense_items` serving as views).
+  2. **Supplier Reference Numbering**: Unlike customer invoices with internal sequential numbering, purchases track the vendor's external bill number (`document_number`). Uniqueness is strictly enforced per company and supplier via composite index `UNIQUE(company_id, supplier_id, document_number)`.
+  3. **Server-Side Financial Integrity**: Client calculations are untrusted. Calculations use strict 2-decimal half-up rounding (`roundHalfUp`). Subtotal, deductible IVA (`deductible_tax_total`), withholding taxes (`retention_total`), and net payable total (`subtotal + deductible_tax_total - retention_total`) are validated server-side and reinforced by database triggers `trg_calc_purchase_document_item_values` and `trg_recalc_purchase_document_totals`.
+  4. **Strict Document Lifecycle**: Follows the database enum `'draft'` -> `'open'` -> `'partial'` -> `'paid'` -> `'void'`. Drafts are fully editable. Approved documents cannot be modified directly. Voiding is restricted to `SUPER_ADMIN` and `ADMIN`, and is strictly prevented if payments have been recorded (`paid_total > 0`).
+  5. **Stock Reception & Reversal**: Physical tracked goods items on purchase documents generate authoritative `PURCHASE` inventory movements (`quantity_delta = +quantity`) upon transitioning to `'open'`. If an open purchase is voided, compensatory `RETURN_OUT` movements (`quantity_delta = -quantity`) are automatically posted under `source_type = 'purchase_document_void'`.
+  6. **Accounts Payable Disbursements**: Outbound payments (`direction = 'outbound'`) are registered independently and allocated via `payment_allocations` (`document_type = 'purchase_document'`). The trigger `trg_payment_allocation_sync` maintains `paid_total` and `balance_due`. Overpayments (`amount > balance_due`) and payments against void documents are rejected server-side.
+  7. **Security & Audit**: Cross-company supplier, product, or tax references fail. Read/write operations require valid role authorization, and all actions log before/after states to `audit_logs`.
+- **Reason**: Accounts payable and deductible tax tracking must comply with tax authority audits (IVA descontable) and protect financial balances against fraudulent edits or orphan inventory entries.
+- **Alternatives Considered**: Storing expenses and purchases in separate disconnected tables (rejected due to schema duplication and dual payment allocation complexity); allowing destructive deletions (rejected to preserve accounting audit trails).
+- **Impact**: Real-time accounts payable tracking, accurate deductible IVA reporting, automated inventory reception, and zero reliance on mock storage.
+
 

@@ -361,6 +361,55 @@ export interface PurchaseDocumentItem {
   created_at: string;
 }
 
+export interface CreatePurchaseDocumentItemInput {
+  product_id?: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  tax_rate_id?: string | null;
+  tax_rate?: number;
+}
+
+export interface CreatePurchaseDocumentInput {
+  document_number: string;
+  supplier_id?: string | null;
+  document_date: string;
+  due_date: string;
+  category: string;
+  currency_code?: string;
+  retention_total?: number;
+  notes?: string | null;
+  status?: 'draft' | 'open';
+  items: CreatePurchaseDocumentItemInput[];
+}
+
+export interface UpdatePurchaseDocumentInput {
+  document_number?: string;
+  supplier_id?: string | null;
+  document_date?: string;
+  due_date?: string;
+  category?: string;
+  currency_code?: string;
+  retention_total?: number;
+  notes?: string | null;
+  items?: CreatePurchaseDocumentItemInput[];
+}
+
+export interface PurchaseDocumentWithSupplier extends PurchaseDocument {
+  supplier?: Supplier | null;
+}
+
+export interface PurchaseDocumentItemWithDetails extends PurchaseDocumentItem {
+  product?: Product | null;
+  tax_rate_obj?: TaxRate | null;
+}
+
+export interface PurchaseDocumentWithDetails extends PurchaseDocument {
+  supplier?: Supplier | null;
+  items: PurchaseDocumentItemWithDetails[];
+  payments?: (PaymentAllocation & { payment: Payment })[];
+}
+
 export type PaymentDirection = 'inbound' | 'outbound';
 export type PaymentStatus = 'completed' | 'void';
 
@@ -399,9 +448,21 @@ export interface CreatePaymentInput {
   notes?: string | null;
 }
 
+export interface CreateSupplierPaymentInput {
+  purchase_document_id: string;
+  amount: number;
+  payment_date: string;
+  method: string;
+  reference?: string | null;
+  notes?: string | null;
+}
+
 export interface PaymentWithDetails extends Payment {
   counterparty?: Customer | Supplier | null;
-  allocations?: (PaymentAllocation & { invoice?: SalesInvoice | null })[];
+  allocations?: (PaymentAllocation & {
+    invoice?: SalesInvoice | null;
+    purchase_document?: PurchaseDocument | null;
+  })[];
 }
 
 export type InventoryMovementType = 

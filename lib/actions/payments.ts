@@ -12,7 +12,9 @@ import {
   Payment,
   PaymentWithDetails,
   CreatePaymentInput,
+  CreateSupplierPaymentInput,
   SalesInvoice,
+  PurchaseDocument,
   Customer,
   Supplier,
 } from '@/types/database';
@@ -140,6 +142,25 @@ export async function getPaymentsAction(
       (invoices || []).forEach((inv: SalesInvoice) => invoiceMap.set(inv.id, inv));
     }
 
+    // Fetch purchase document details for allocated purchase documents
+    const purchaseDocIds = Array.from(
+      new Set(
+        (allocations || [])
+          .filter((a: any) => a.document_type === 'purchase_document')
+          .map((a: any) => a.document_id)
+      )
+    );
+
+    const purchaseDocMap = new Map<string, any>();
+    if (purchaseDocIds.length > 0) {
+      const { data: pDocs } = await supabase
+        .from('purchase_documents')
+        .select('*')
+        .in('id', purchaseDocIds)
+        .eq('company_id', session.activeCompanyId);
+      (pDocs || []).forEach((pd: any) => purchaseDocMap.set(pd.id, pd));
+    }
+
     // Map allocations by payment id
     const allocMap = new Map<string, any[]>();
     (allocations || []).forEach((a: any) => {
@@ -148,6 +169,7 @@ export async function getPaymentsAction(
         ...a,
         amount: Number(a.amount),
         invoice: a.document_type === 'sales_invoice' ? invoiceMap.get(a.document_id) || null : null,
+        purchase_document: a.document_type === 'purchase_document' ? purchaseDocMap.get(a.document_id) || null : null,
       });
       allocMap.set(a.payment_id, list);
     });
@@ -167,10 +189,10 @@ export async function getPaymentsAction(
       enriched = enriched.filter((pay) => {
         const counterpartyName = (pay.counterparty as any)?.name?.toLowerCase() || '';
         const ref = (pay.reference || '').toLowerCase();
-        const invoiceNums = (pay.allocations || [])
-          .map((a) => a.invoice?.invoice_number?.toLowerCase() || '')
+        const docNums = (pay.allocations || [])
+          .map((a) => (a.invoice?.invoice_number || a.purchase_document?.document_number || '').toLowerCase())
           .join(' ');
-        return counterpartyName.includes(term) || ref.includes(term) || invoiceNums.includes(term);
+        return counterpartyName.includes(term) || ref.includes(term) || docNums.includes(term);
       });
     }
 
@@ -345,6 +367,155 @@ export async function recordCustomerPaymentAction(
 }
 
 /**
+ * Records a supplier disbursement linked to a purchase document / expense.
+ * Server-side checks: amount > 0, document ownership, overpayment prevention, void/paid check.
+ */
+export async function recordSupplierPaymentAction(
+  input: CreateSupplierPaymentInput
+): Promise<ActionResponse<Payment>> {
+  const session = await getServerAuthSession();
+  if (!session) {
+    return { success: false, error: 'Sesión no iniciada.' };
+  }
+
+  if (!WRITE_ROLES.includes(session.activeRole)) {
+    return {
+      success: false,
+      error: 'Permiso denegado. Se requiere rol de Super Administrador, Administrador o Finanzas.',
+    };
+  }
+
+  if (!input.purchase_document_id) {
+    return { success: false, error: 'Debe especificar el documento de compra al cual aplicar el pago.' };
+  }
+
+  const rawAmount = Number(input.amount);
+  if (isNaN(rawAmount) || rawAmount <= 0) {
+    return { success: false, error: 'El monto del pago debe ser un número positivo mayor a 0.' };
+  }
+  const paymentAmount = roundHalfUp(rawAmount, 2);
+
+  if (!input.payment_date) {
+    return { success: false, error: 'Debe especificar la fecha del pago.' };
+  }
+
+  if (!input.method) {
+    return { success: false, error: 'Debe seleccionar un método de pago.' };
+  }
+
+  const supabase = createServerSupabaseClient();
+  if (!supabase) {
+    return { success: false, error: 'Cliente de base de datos no disponible.' };
+  }
+
+  try {
+    // 1. Fetch purchase document and verify company ownership
+    const { data: doc, error: docErr } = await supabase
+      .from('purchase_documents')
+      .select('*')
+      .eq('id', input.purchase_document_id)
+      .eq('company_id', session.activeCompanyId)
+      .single();
+
+    if (docErr || !doc) {
+      return { success: false, error: 'Documento de compra no encontrado o no pertenece a su empresa.' };
+    }
+
+    // 2. Validate document status
+    if (doc.status === 'void') {
+      return { success: false, error: 'No se pueden registrar pagos en un documento de compra anulado.' };
+    }
+
+    const currentBalanceDue = Number(doc.balance_due);
+    if (currentBalanceDue <= 0 || doc.status === 'paid') {
+      return { success: false, error: 'El documento de compra ya se encuentra pagado en su totalidad.' };
+    }
+
+    // 3. Overpayment Prevention
+    if (paymentAmount > currentBalanceDue) {
+      return {
+        success: false,
+        error: `El monto del pago ($${paymentAmount.toLocaleString()}) no puede exceder el saldo pendiente ($${currentBalanceDue.toLocaleString()}).`,
+      };
+    }
+
+    // 4. Insert Payment record (outbound)
+    const { data: payment, error: payInsErr } = await supabase
+      .from('payments')
+      .insert({
+        company_id: session.activeCompanyId,
+        direction: 'outbound',
+        payment_date: input.payment_date,
+        amount: paymentAmount,
+        method: input.method,
+        reference: input.reference?.trim() || null,
+        counterparty_type: 'supplier',
+        counterparty_id: doc.supplier_id || session.activeCompanyId,
+        status: 'completed',
+        notes: input.notes?.trim() || null,
+        created_by: session.id,
+      })
+      .select()
+      .single();
+
+    if (payInsErr || !payment) {
+      console.error('[recordSupplierPaymentAction] Error inserting payment:', payInsErr);
+      return { success: false, error: payInsErr?.message || 'Error al crear el registro de desembolso.' };
+    }
+
+    // 5. Insert Payment Allocation
+    // Database trigger `trg_payment_allocation_sync` will authoritatively update
+    // paid_total, balance_due, and status on `purchase_documents`!
+    const { error: allocInsErr } = await supabase
+      .from('payment_allocations')
+      .insert({
+        payment_id: payment.id,
+        document_type: 'purchase_document',
+        document_id: doc.id,
+        amount: paymentAmount,
+      });
+
+    if (allocInsErr) {
+      console.error('[recordSupplierPaymentAction] Allocation insert error:', allocInsErr);
+      await supabase.from('payments').delete().eq('id', payment.id);
+      return { success: false, error: 'Error al asociar la asignación del pago al documento de compra.' };
+    }
+
+    // 6. Audit log
+    await supabase.from('audit_logs').insert({
+      company_id: session.activeCompanyId,
+      user_id: session.id,
+      action: 'CREATE',
+      entity_type: 'payment',
+      entity_id: payment.id,
+      old_values: null,
+      new_values: {
+        amount: payment.amount,
+        direction: 'outbound',
+        method: payment.method,
+        purchase_document_id: doc.id,
+        document_number: doc.document_number,
+        supplier_id: doc.supplier_id,
+        reference: payment.reference,
+      },
+    });
+
+    revalidatePath('/purchases/expenses');
+    revalidatePath(`/purchases/expenses/${doc.id}`);
+    revalidatePath('/sales/payments');
+
+    return {
+      success: true,
+      data: payment,
+      message: `Desembolso de $${paymentAmount.toLocaleString()} registrado con éxito para el documento ${doc.document_number}.`,
+    };
+  } catch (err: any) {
+    console.error('[recordSupplierPaymentAction] Exception:', err);
+    return { success: false, error: err?.message || 'Error inesperado al registrar el desembolso.' };
+  }
+}
+
+/**
  * Voids a payment record and reverses its allocation, restoring invoice balance.
  * Restricted to SUPER_ADMIN and ADMIN.
  */
@@ -429,6 +600,7 @@ export async function voidPaymentAction(
     });
 
     revalidatePath('/sales/invoices');
+    revalidatePath('/purchases/expenses');
     revalidatePath('/sales/payments');
 
     return {
