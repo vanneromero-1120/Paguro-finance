@@ -207,5 +207,23 @@ This document tracks significant architectural and technical decisions made duri
 - **Alternatives Considered**: Serving files through public bucket URLs (rejected as financial documents contain confidential PII and tax data); computing aging buckets client-side (rejected as client clock skew produces conflicting reports).
 - **Impact**: Enterprise-grade document confidentiality, authoritative consolidated reporting, and complete decoupling of `app/documents/page.tsx` and `app/reports/page.tsx` from mock data.
 
+### ADR-021: Financial Dashboard Real Data Migration and Server-Side Metric Aggregation
+- **Status**: Accepted
+- **Context**: The main financial dashboard (`app/dashboard/page.tsx`) previously rendered static mock fixtures from `mock-store.ts` and fake hardcoded trends. In a multi-tenant enterprise system, the dashboard must accurately reflect the authenticated company's true financial standing across revenue, expenses, operating margin, A/R, A/P, estimated VAT, and inventory valuation without client-side calculation drift or mock remnants.
+- **Decision**:
+  1. **Consolidated Server-Side Action**: Implemented `getDashboardDataAction(period)` in `lib/actions/dashboard.ts`, which coordinates 10 parallel Supabase queries (`companies`, `sales_invoices`, `purchase_documents`, `products`, `inventory_movements`, `payments`) scoped to the user's `session.activeCompanyId`.
+  2. **Authoritative Financial Status Filters**:
+     - Net Sales & Inbound IVA include invoices in `status IN ('issued', 'partial', 'paid', 'overdue')` with `issue_date` within the selected period.
+     - Operational Expenses & Deductible IVA include purchase documents in `status IN ('issued', 'partial', 'paid', 'overdue')` with `issue_date` within the selected period.
+     - A/R and A/P represent cumulative open balance snapshots (`balance_due > 0`) independent of the period window, reflecting real-world liquidity commitments.
+     - Operating margin is strictly computed as `roundHalfUp(netSales - totalExpenses)`.
+  3. **Dynamic Multi-Company Selector**: Disconnected `components/layout/CompanySelector.tsx` from `INITIAL_COMPANIES` and tied it to `getAuthorizedCompaniesAction()` and `switchActiveCompanyAction()`. Users can only view and select companies where they possess an active membership in `company_users`.
+  4. **Zero State & Loading UX**: When no records exist in the database, the dashboard renders clean zero states ($0 totals, 0 counts, and descriptive empty table states) rather than failing or showing simulated data.
+  5. **Role Access**: Extended dashboard reading access to `VIEWER`, `ACCOUNTANT`, `FINANCE`, `ADMIN`, and `SUPER_ADMIN`.
+- **Reason**: Provides immediate, truthful executive visibility into operational cash flow and financial health while enforcing RLS multi-tenant security and eliminating fake test metrics.
+- **Alternatives Considered**: Having the dashboard make multiple separate REST calls for each widget (rejected due to network latency and waterfall overhead); computing KPIs in browser state (rejected to preserve single source of truth).
+- **Impact**: High-performance dashboard loading, verified multi-company isolation, and decoupling of `app/dashboard/page.tsx` and `components/layout/CompanySelector.tsx` from `mock-store.ts`.
+
+
 
 

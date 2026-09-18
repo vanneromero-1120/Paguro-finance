@@ -36,8 +36,9 @@ The implementation of **Paguro Finance** progresses through systematic milestone
 - [x] **Purchases & Expenses (CxP)**: Supplier document registration, deductible VAT classification, retention calculation, inventory reception, outbound payments, and payment allocations.
 - [x] **Value Added Tax (IVA) & Tax Periods**: Configurable period calculation, live line-level generated vs deductible tax reconciliation, manual fiscal adjustments, full audit logging, and immutable period closing locked by database triggers.
 - [x] **Documents + Reports (COMPLETED MILESTONE)**: Private Supabase Storage (`financial-documents`), multi-tenant RLS folder policies, 60s signed URLs, 9 authoritative financial reports (Sales, Expenses, A/R with 5 aging buckets, A/P with aging, IVA Summary, Inventory Valuation, Customer/Supplier Balances, Product Profitability), RFC 4180 CSV exports with audit logging, and 100% decoupling from `mock-store.ts`.
-- [ ] **Dashboard Real Data Migration (NEXT MILESTONE)**: Migrate dashboard financial KPIs, cash flow charts, and alert widgets to live Supabase data.
-- [ ] **Settings / Audit Cleanup & Final Mock Removal**: Decouple remaining settings pages and remove `mock-store.ts` globally.
+- [x] **Dashboard Real Data Migration (COMPLETED MILESTONE)**: Authoritative live Supabase data, consolidated parallel server action (`getDashboardDataAction`), 7 live StatCards (Net Sales, Expenses, Operating Margin, A/R, A/P, Estimated IVA, Inventory Valuation), low stock alerts, live recent sales/purchases/payments tables, dynamic authorized company selector, and 100% decoupling from `mock-store.ts`.
+- [ ] **Settings / Audit Cleanup & Final Mock Removal (NEXT MILESTONE)**: Decouple remaining settings pages (`settings/company`, `settings/audit`) and remove `mock-store.ts` globally.
 - [ ] **Final Production QA & Deployment Verification**: End-to-end multi-role audit and zero-mock verification.
+
 
 

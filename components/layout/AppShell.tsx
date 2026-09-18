@@ -9,6 +9,13 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const [activeCompanyId, setActiveCompanyId] = useState<string>('c1111111-1111-1111-1111-111111111111');
   const pathname = usePathname();
 
+  React.useEffect(() => {
+    const match = document.cookie.match(/(?:^|;\s*)paguro_active_company=([^;]+)/);
+    if (match && match[1]) {
+      setActiveCompanyId(decodeURIComponent(match[1]));
+    }
+  }, []);
+
   // If on login page, don't show dashboard shell
   if (pathname === '/login') {
     return <>{children}</>;

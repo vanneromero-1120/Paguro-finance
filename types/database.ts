@@ -920,3 +920,78 @@ export interface AuditLog {
   ip_or_context?: string | null;
   created_at: string;
 }
+
+// ============================================================================
+// DASHBOARD TYPES
+// ============================================================================
+
+export type DashboardPeriod = 'month' | 'quarter' | 'year';
+
+export interface DashboardKpis {
+  netSales: number;
+  salesCount: number;
+  totalExpenses: number;
+  expensesCount: number;
+  operatingMargin: number;
+  operatingMarginPercent: number;
+  accountsReceivable: number;
+  openInvoicesCount: number;
+  accountsPayable: number;
+  openPurchasesCount: number;
+  generatedVat: number;
+  deductibleVat: number;
+  estimatedVatPayable: number;
+  inventoryValuation: number;
+  trackedProductsCount: number;
+  lowStockCount: number;
+}
+
+export interface DashboardRecentInvoice {
+  id: string;
+  invoice_number: string;
+  issue_date: string;
+  customer_name: string;
+  total: number;
+  balance_due: number;
+  status: SalesInvoiceStatus;
+}
+
+export interface DashboardRecentPurchase {
+  id: string;
+  document_number: string;
+  issue_date: string;
+  supplier_name: string;
+  category: string;
+  total: number;
+  balance_due: number;
+  status: PurchaseDocumentStatus;
+}
+
+export interface DashboardRecentPayment {
+  id: string;
+  payment_date: string;
+  direction: PaymentDirection;
+  method: string;
+  reference?: string | null;
+  amount: number;
+  status: PaymentStatus;
+  entity_name?: string | null;
+}
+
+export interface DashboardData {
+  company: {
+    id: string;
+    trade_name: string;
+    legal_name: string;
+    tax_id: string;
+    currency_code: string;
+  };
+  period: DashboardPeriod;
+  date_from: string;
+  date_to: string;
+  kpis: DashboardKpis;
+  recentSales: DashboardRecentInvoice[];
+  recentPurchases: DashboardRecentPurchase[];
+  recentPayments: DashboardRecentPayment[];
+}
+

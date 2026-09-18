@@ -204,3 +204,67 @@ Profitability is computed from issued, partial, and paid sales invoices:
 - All export routines must enforce multi-tenant company isolation; cross-company data leakage is structurally impossible at both RLS and server action layers.
 - Export operations generate an immutable record in `audit_logs` (`action = 'REPORT_EXPORT'`).
 - CSV files must be encoded with UTF-8 BOM (`\uFEFF`) and RFC 4180 delimiter escaping to prevent CSV injection and display Spanish accented characters properly in Microsoft Excel.
+
+---
+
+## 6. Dashboard KPI Calculation Rules and Aggregation Invariants
+
+### 6.1 Period Boundaries Formulation
+Dashboard periods filter financial activity by transaction contractual issue date (`issue_date`):
+- **This Month (`month`)**: First calendar day of the active month ($T_{\text{start}} = \text{YYYY-MM-01}$) to the final day of the active month ($T_{\text{end}} = \text{YYYY-MM-LD}$).
+- **This Quarter (`quarter`)**: First calendar day of the active quarter ($Q \in \{1: \text{Jan-Mar}, 2: \text{Apr-Jun}, 3: \text{Jul-Sep}, 4: \text{Oct-Dec}\}$) to the final day of the active quarter.
+- **Current Year (`year`)**: First day of the calendar year ($\text{YYYY-01-01}$) to the final day of the calendar year ($\text{YYYY-12-31}$).
+
+### 6.2 Authoritative KPI Definitions
+1. **Net Sales / Revenue**:
+   $$
+   \text{net\_sales} = \sum_{inv \in S} inv.\text{subtotal}
+   $$
+   where $S = \{ inv \in \text{sales\_invoices} \mid inv.\text{company\_id} = C \land inv.\text{status} \in \{\text{'issued'}, \text{'partial'}, \text{'paid'}, \text{'overdue'}\} \land inv.\text{issue\_date} \in [T_{\text{start}}, T_{\text{end}}] \}$. Draft and void documents are strictly excluded.
+2. **Expenses & Purchases**:
+   $$
+   \text{total\_expenses} = \sum_{pur \in P} pur.\text{subtotal}
+   $$
+   where $P = \{ pur \in \text{purchase\_documents} \mid pur.\text{company\_id} = C \land pur.\text{status} \in \{\text{'issued'}, \text{'partial'}, \text{'paid'}, \text{'overdue'}\} \land pur.\text{issue\_date} \in [T_{\text{start}}, T_{\text{end}}] \}$.
+3. **Operating Gross Margin**:
+   $$
+   \text{operating\_margin} = \text{round}(\text{net\_sales} - \text{total\_expenses}, 2)
+   $$
+   $$
+   \text{margin\_percentage} = \begin{cases}
+   \text{round}((\frac{\text{operating\_margin}}{\text{net\_sales}}) \times 100, 2) & \text{if } \text{net\_sales} > 0 \\
+   0 & \text{otherwise}
+   \end{cases}
+   $$
+4. **Accounts Receivable (CxC)**:
+   Cumulative balance snapshot across all open customer invoices:
+   $$
+   \text{cxc} = \sum_{inv \in \text{sales\_invoices}} inv.\text{balance\_due}
+   $$
+   where $inv.\text{company\_id} = C \land inv.\text{status} \in \{\text{'issued'}, \text{'partial'}, \text{'overdue'}\} \land inv.\text{balance\_due} > 0$.
+5. **Accounts Payable (CxP)**:
+   Cumulative balance snapshot across all open supplier purchase documents:
+   $$
+   \text{cxp} = \sum_{pur \in \text{purchase\_documents}} pur.\text{balance\_due}
+   $$
+   where $pur.\text{company\_id} = C \land pur.\text{status} \in \{\text{'issued'}, \text{'partial'}, \text{'overdue'}\} \land pur.\text{balance\_due} > 0$.
+6. **Estimated IVA Payable**:
+   $$
+   \text{generated\_iva} = \sum_{inv \in S} inv.\text{tax\_total}
+   $$
+   $$
+   \text{deductible\_iva} = \sum_{pur \in P} \max(pur.\text{deductible\_tax\_total}, pur.\text{tax\_total})
+   $$
+   $$
+   \text{estimated\_iva\_payable} = \max(0, \text{round}(\text{generated\_iva} - \text{deductible\_iva}, 2))
+   $$
+7. **Inventory Valuation & Low Stock**:
+   For all active catalog products where $\text{is\_inventory\_item} = \text{true}$:
+   $$
+   \text{current\_stock}_p = \sum_{m \in M_p} m.\text{quantity\_delta}
+   $$
+   $$
+   \text{valuation} = \sum_p \text{round}(\max(0, \text{current\_stock}_p) \times p.\text{cost}, 2)
+   $$
+   Low stock condition: $\text{current\_stock}_p \le p.\text{stock\_minimum}$.
+

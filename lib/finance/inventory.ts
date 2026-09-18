@@ -9,7 +9,9 @@ import { roundHalfUp } from './calculations';
 /**
  * Derives current stock of a product from an array of inventory movements.
  */
-export function deriveProductStock(movements: InventoryMovement[]): number {
+export function deriveProductStock(
+  movements: Array<{ quantity_delta?: number | null } | InventoryMovement>
+): number {
   let stock = 0;
   for (const m of movements) {
     stock += Number(m.quantity_delta || 0);
