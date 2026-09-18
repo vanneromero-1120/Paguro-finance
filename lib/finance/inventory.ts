@@ -61,3 +61,12 @@ export function validateInventoryMovement(
 export function isLowStock(currentStock: number, minimumStock: number): boolean {
   return currentStock <= minimumStock;
 }
+
+/**
+ * Calculates financial inventory valuation.
+ * Valuation = current_stock * unit_cost, rounded half-up to 2 currency decimals.
+ */
+export function calculateInventoryValuation(currentStock: number, unitCost: number): number {
+  if (currentStock <= 0 || unitCost <= 0) return 0;
+  return roundHalfUp(currentStock * unitCost, 2);
+}

@@ -200,6 +200,45 @@ export interface Product {
   created_by?: string | null;
 }
 
+export interface CreateProductInput {
+  sku: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  product_type: 'physical' | 'service';
+  supplier_id?: string | null;
+  cost: number;
+  sale_price: number;
+  tax_rate_id: string;
+  stock_minimum?: number;
+  is_inventory_item?: boolean;
+  status?: 'active' | 'inactive' | 'archived';
+  barcode?: string | null;
+}
+
+export interface UpdateProductInput {
+  sku?: string;
+  name?: string;
+  description?: string | null;
+  category?: string | null;
+  product_type?: 'physical' | 'service';
+  supplier_id?: string | null;
+  cost?: number;
+  sale_price?: number;
+  tax_rate_id?: string;
+  stock_minimum?: number;
+  is_inventory_item?: boolean;
+  status?: 'active' | 'inactive' | 'archived';
+  barcode?: string | null;
+}
+
+export interface ProductWithStock extends Product {
+  current_stock: number;
+  inventory_value: number;
+  tax_rate?: TaxRate | null;
+  supplier?: Supplier | null;
+}
+
 export type SalesInvoiceStatus = 'draft' | 'issued' | 'partial' | 'paid' | 'overdue' | 'void';
 
 export interface SalesInvoice {
@@ -331,6 +370,31 @@ export interface InventoryMovement {
   reason?: string | null;
   created_by?: string | null;
   created_at: string;
+}
+
+export interface RecordMovementInput {
+  product_id: string;
+  movement_type: InventoryMovementType;
+  quantity: number;
+  unit_cost?: number;
+  movement_date?: string;
+  source_type?: string | null;
+  source_id?: string | null;
+  reason?: string | null;
+}
+
+export interface InventoryMovementWithDetails extends InventoryMovement {
+  product?: {
+    id: string;
+    sku: string;
+    name: string;
+    category?: string | null;
+    cost: number;
+  } | null;
+  created_by_profile?: {
+    full_name: string;
+    email: string;
+  } | null;
 }
 
 export type TaxPeriodStatus = 'open' | 'reviewed' | 'closed' | 'reopened';

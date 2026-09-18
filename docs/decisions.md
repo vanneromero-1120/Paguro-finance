@@ -137,3 +137,12 @@ This document tracks significant architectural and technical decisions made duri
 - **Alternatives Considered**: Retaining offline demo fallback bypasses in production (unacceptable security vulnerability).
 - **Impact**: Zero-compromise security posture, guaranteed single-source-of-truth user credentials, and full RLS enforcement across all application interactions.
 
+---
+
+## ADR-016: Product Master Data, Inventory Movement Ledger, and Valuation Engine
+- **Date**: 2026-09-17
+- **Decision**: Decouple Products and Inventory Movements completely from local mock storage and establish the authoritative ledger-backed inventory model in Supabase. Stock is dynamically derived from `inventory_movements` (`get_product_stock()` and `quantity_delta` summation) rather than an editable scalar column. Negative stock is strictly rejected for physical items (`current_stock + quantity_delta >= 0`). Service products (`product_type = 'service'`) bypass inventory tracking. Inventory valuation follows the safe baseline model ($\text{current\_stock} \times \text{unit\_cost}$) with decimal-safe half-up rounding. Cross-company supplier and product integrity is enforced at the database layer via `validate_cross_company_integrity()` trigger and in server actions. Mutations are restricted to `SUPER_ADMIN`, `ADMIN`, and `OPERATIONS`, while `FINANCE`, `ACCOUNTANT`, and `VIEWER` are read-only. Every mutation appends an immutable entry to `audit_logs`.
+- **Reason**: Physical stock represents high-risk company assets; manual direct scalar updates cause audit trail blindness, reconciliation failure, and phantom inventory. A movement-based ledger provides an indisputable, immutable transactional history.
+- **Alternatives Considered**: Direct editable `stock_quantity` column on `products` (rejected due to lack of traceability); FIFO/LIFO lot tracking (deferred to advanced manufacturing milestone as specified in architecture).
+- **Impact**: 100% auditable inventory history, strict multi-company isolation, zero negative stock anomalies, and automated valuation metrics.
+
