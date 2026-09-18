@@ -38,8 +38,51 @@ export interface Company {
   currency_code: string;
   timezone: string;
   is_active: boolean;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface UpdateCompanyInput {
+  legal_name?: string;
+  trade_name?: string;
+  tax_id?: string;
+  country_code?: string;
+  currency_code?: string;
+  timezone?: string;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+}
+
+export interface CompanyUserMembershipWithProfile {
+  id: string;
+  user_id: string;
+  company_id: string;
+  role: UserRole;
+  status: 'active' | 'invited' | 'suspended';
+  invited_at?: string | null;
+  last_access_at?: string | null;
+  profile: {
+    id: string;
+    email: string;
+    full_name: string;
+    phone?: string | null;
+    avatar_url?: string | null;
+  };
+}
+
+export interface AuditLogFilterInput {
+  search?: string;
+  action?: string;
+  entityType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
 }
 
 export interface Profile {
