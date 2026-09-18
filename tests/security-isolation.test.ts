@@ -17,7 +17,7 @@ import {
   mockPayments,
   mockInventoryMovements,
   mockTaxPeriods,
-} from '../lib/supabase/mock-store';
+} from './fixtures/security-test-fixtures';
 
 describe('Phase 11: Multi-Company Security Isolation', () => {
   const company1 = mockCompanies[0]; // Paguro Corp Demo
