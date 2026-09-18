@@ -1,5 +1,10 @@
 'use client';
 
+// ============================================================================
+// Paguro Finance - Production Authentication Portal
+// Secure Supabase Session Handling, Multi-Company Isolation & Enterprise Security
+// ============================================================================
+
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -45,27 +50,6 @@ function LoginForm() {
     }
   };
 
-  const handlePreset = async (presetEmail: string) => {
-    setEmail(presetEmail);
-    setPassword('Password123!');
-    setLoading(true);
-    setErrorMessage(null);
-
-    const formData = new FormData();
-    formData.append('email', presetEmail);
-    formData.append('password', 'Password123!');
-    formData.append('returnTo', returnTo);
-
-    try {
-      await loginAction(formData);
-    } catch (err: any) {
-      if (err?.message && !err.message.includes('NEXT_REDIRECT')) {
-        setErrorMessage(err.message);
-        setLoading(false);
-      }
-    }
-  };
-
   return (
     <div
       style={{
@@ -82,14 +66,14 @@ function LoginForm() {
         className="card"
         style={{
           width: '100%',
-          maxWidth: '460px',
-          padding: '36px 32px',
+          maxWidth: '440px',
+          padding: '40px 32px',
           border: '1px solid var(--border-card)',
           boxShadow: '0 24px 48px rgba(0, 0, 0, 0.65)',
         }}
       >
         {/* Brand Logo & Title */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div
             style={{
               width: '52px',
@@ -99,35 +83,35 @@ function LoginForm() {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff',
-              fontWeight: 800,
-              fontSize: '24px',
-              boxShadow: '0 8px 24px rgba(59, 130, 246, 0.45)',
-              marginBottom: '14px',
+              color: '#ffffff',
+              boxShadow: '0 8px 16px rgba(59, 130, 246, 0.3)',
+              marginBottom: '16px',
             }}
           >
-            P
+            <Shield size={28} />
           </div>
-          <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-white)' }}>
+
+          <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-white)', letterSpacing: '-0.02em' }}>
             Paguro Finance
           </h1>
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Sistema Centralizado de Control Financiero Multiempresa
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Plataforma Integral de Gestión y Control Financiero
           </p>
         </div>
 
+        {/* Error Alert */}
         {errorMessage && (
           <div
             style={{
-              padding: '12px 14px',
-              borderRadius: '8px',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: 'var(--accent-red)',
-              fontSize: '12px',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '10px',
+              padding: '12px 14px',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '8px',
+              color: 'var(--color-danger)',
+              fontSize: '13px',
               marginBottom: '20px',
             }}
           >
@@ -136,17 +120,18 @@ function LoginForm() {
           </div>
         )}
 
-        {/* Login Form */}
-        <form method="POST" onSubmit={handleLogin}>
+        {/* Form */}
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className="form-group">
             <label className="form-label">Correo Electrónico Corporativo</label>
             <input
               type="email"
               required
+              autoComplete="email"
               className="form-input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="usuario@pagurocorp.com"
+              placeholder="nombre@empresa.com"
             />
           </div>
 
@@ -163,6 +148,7 @@ function LoginForm() {
             <input
               type="password"
               required
+              autoComplete="current-password"
               className="form-input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -174,63 +160,25 @@ function LoginForm() {
           <Button
             type="submit"
             variant="primary"
-            style={{ width: '100%', marginTop: '12px', justifyContent: 'center' }}
+            style={{ width: '100%', marginTop: '8px', justifyContent: 'center' }}
             disabled={loading}
           >
             {loading ? 'Iniciando Sesión...' : 'Ingresar al Sistema'}
           </Button>
         </form>
 
-        {/* Quick Role Switcher Presets */}
-        <div style={{ marginTop: '28px', borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
-          <div
-            style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              color: 'var(--text-dim)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              marginBottom: '12px',
-              textAlign: 'center',
-            }}
-          >
-            Perfiles de Demostración & Auditoría
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            {[
-              { label: 'Super Admin', email: 'superadmin@pagurocorp.com', desc: 'Control Total' },
-              { label: 'Admin Financiero', email: 'admin@pagurocorp.com', desc: 'Gestión Completa' },
-              { label: 'Finanzas / IVA', email: 'finance@pagurocorp.com', desc: 'Operación & Facturas' },
-              { label: 'Contador Fiscal', email: 'accountant@pagurocorp.com', desc: 'Impuestos & Cierres' },
-              { label: 'Operaciones', email: 'ops@pagurocorp.com', desc: 'Inventario & Stock' },
-              { label: 'Auditor / Viewer', email: 'viewer@pagurocorp.com', desc: 'Solo Lectura' },
-            ].map((p) => (
-              <button
-                key={p.email}
-                type="button"
-                onClick={() => handlePreset(p.email)}
-                disabled={loading}
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: '6px',
-                  backgroundColor: email === p.email ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                  border: email === p.email ? '1px solid var(--accent-blue)' : '1px solid var(--border-subtle)',
-                  color: email === p.email ? 'var(--accent-blue)' : 'var(--text-muted)',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px',
-                  transition: 'var(--transition-smooth)',
-                }}
-              >
-                <span style={{ fontWeight: 600, color: 'var(--text-white)' }}>{p.label}</span>
-                <span style={{ fontSize: '9.5px', color: 'var(--text-dim)' }}>{p.desc}</span>
-              </button>
-            ))}
-          </div>
+        {/* Security Assurance Footer */}
+        <div
+          style={{
+            marginTop: '32px',
+            borderTop: '1px solid var(--border-subtle)',
+            paddingTop: '16px',
+            textAlign: 'center',
+            fontSize: '11px',
+            color: 'var(--text-dim)',
+          }}
+        >
+          <span>Acceso cifrado de grado bancario (TLS 1.3 + JWT Supabase)</span>
         </div>
       </div>
     </div>
@@ -261,4 +209,3 @@ export default function LoginPage() {
     </Suspense>
   );
 }
-

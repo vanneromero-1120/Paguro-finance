@@ -1,5 +1,6 @@
 -- ============================================================================
 -- Paguro Finance - Migration 00004: Safe Development Seed Data
+-- [DEV / LOCAL SEED ONLY - DO NOT RUN IN PRODUCTION ENVIRONMENT]
 -- Creates Paguro Corp Demo, Pagureo Demo, Pagurai Demo and realistic initial records
 -- ============================================================================
 

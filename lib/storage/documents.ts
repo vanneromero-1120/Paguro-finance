@@ -65,11 +65,9 @@ export async function uploadFinancialDocument(
   const storagePath = `${companyId}/${entityType}/${entityId}/${Date.now()}_${sanitizedName}`;
 
   if (!supabase) {
-    // Offline / Local mock simulation
     return {
-      success: true,
-      documentId: `doc-mock-${Date.now()}`,
-      storagePath,
+      success: false,
+      error: 'Servicio de almacenamiento Supabase no configurado.',
     };
   }
 
@@ -127,7 +125,8 @@ export async function getSignedDocumentUrl(
 
   if (!supabase) {
     return {
-      signedUrl: `/mock-storage/${storagePath}?mock_token=signed_preview`,
+      signedUrl: null,
+      error: 'Servicio de almacenamiento Supabase no configurado.',
     };
   }
 

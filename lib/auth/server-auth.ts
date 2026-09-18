@@ -8,93 +8,70 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { AuthUser, Permission } from '@/types/auth';
 import { UserRole } from '@/types/database';
 import { hasPermission } from '@/lib/auth/permissions';
-import { mockCompanies } from '@/lib/supabase/mock-store';
 
 /**
- * Returns the currently authenticated user with profiles and company memberships.
- * Supports both live Supabase sessions and local offline demo emulation.
+ * Returns the currently authenticated user with profile and company memberships from live Supabase.
  */
 export async function getServerAuthSession(): Promise<AuthUser | null> {
   const cookieStore = cookies();
   const supabase = createServerSupabaseClient();
 
-  if (supabase) {
+  if (!supabase) {
+    return null;
+  }
+
+  try {
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
 
-    if (!authError && user) {
-      // 1. Fetch user profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      // 2. Fetch company memberships with associated company records
-      const { data: memberships } = await supabase
-        .from('company_users')
-        .select('company_id, role, status, companies (*)')
-        .eq('user_id', user.id)
-        .in('status', ['active', 'ACTIVE']);
-
-      const companiesList = (memberships || [])
-        .filter((m: any) => m.companies && (m.status === 'active' || m.status === 'ACTIVE'))
-        .map((m: any) => ({
-          company: m.companies,
-          role: m.role as UserRole,
-        }));
-
-      // 3. Determine active company from cookie or first available company
-      const activeCompanyCookie = cookieStore.get('paguro_active_company')?.value;
-      const activeCompanyMembership =
-        companiesList.find((c: any) => c.company.id === activeCompanyCookie) || companiesList[0];
-
-      if (profile && activeCompanyMembership) {
-        return {
-          id: user.id,
-          email: user.email || profile.email,
-          profile: profile,
-          companies: companiesList,
-          activeCompanyId: activeCompanyMembership.company.id,
-          activeRole: activeCompanyMembership.role,
-        };
-      }
+    if (authError || !user) {
+      return null;
     }
+
+    // 1. Fetch user profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    // 2. Fetch company memberships with associated company records
+    const { data: memberships } = await supabase
+      .from('company_users')
+      .select('company_id, role, status, companies (*)')
+      .eq('user_id', user.id)
+      .in('status', ['active', 'ACTIVE']);
+
+    const companiesList = (memberships || [])
+      .filter((m: any) => m.companies && (m.status === 'active' || m.status === 'ACTIVE'))
+      .map((m: any) => ({
+        company: m.companies,
+        role: m.role as UserRole,
+      }));
+
+    // 3. Determine active company from cookie or first available company
+    const activeCompanyCookie = cookieStore.get('paguro_active_company')?.value;
+    const activeCompanyMembership =
+      companiesList.find((c: any) => c.company.id === activeCompanyCookie) || companiesList[0];
+
+    if (profile && activeCompanyMembership) {
+      return {
+        id: user.id,
+        email: user.email || profile.email,
+        profile: profile,
+        companies: companiesList,
+        activeCompanyId: activeCompanyMembership.company.id,
+        activeRole: activeCompanyMembership.role,
+      };
+    }
+
+    return null;
+  } catch (err: any) {
+    console.error('[getServerAuthSession] Authentication lookup error:', err);
+    return null;
   }
-
-  // Fallback: Local offline demo session
-  const demoEmailCookie = cookieStore.get('paguro_demo_session')?.value;
-  const demoRoleCookie = cookieStore.get('paguro_demo_role')?.value as UserRole | undefined;
-
-  if (demoEmailCookie) {
-    const role: UserRole = demoRoleCookie || 'ADMIN';
-    const activeCompanyCookie = cookieStore.get('paguro_active_company')?.value || mockCompanies[0].id;
-
-    return {
-      id: 'demo-user-session',
-      email: demoEmailCookie,
-      profile: {
-        id: 'demo-user-session',
-        email: demoEmailCookie,
-        full_name: demoEmailCookie.split('@')[0].toUpperCase(),
-        phone: null,
-        avatar_url: null,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      companies: mockCompanies.map((c) => ({
-        company: c,
-        role: role,
-      })),
-      activeCompanyId: activeCompanyCookie,
-      activeRole: role,
-    };
-  }
-
-  return null;
 }
 
 /**
