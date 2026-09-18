@@ -1,20 +1,22 @@
 import React from 'react';
 
 interface StatCardProps {
-  title: string;
+  title?: string;
+  label?: string;
   value: string;
   subtitle?: string;
   icon?: React.ReactNode;
   trend?: {
     value: string;
     isPositive: boolean;
-  };
+  } | 'up' | 'down' | 'neutral';
   highlightColor?: 'primary' | 'success' | 'warning' | 'danger' | 'purple';
   onClick?: () => void;
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
   title,
+  label,
   value,
   subtitle,
   icon,
@@ -22,6 +24,8 @@ export const StatCard: React.FC<StatCardProps> = ({
   highlightColor = 'primary',
   onClick,
 }) => {
+  const displayTitle = title || label || '';
+
   const colorMap = {
     primary: 'var(--color-primary)',
     success: 'var(--color-success)',
@@ -29,6 +33,9 @@ export const StatCard: React.FC<StatCardProps> = ({
     danger: 'var(--color-danger)',
     purple: 'var(--color-purple)',
   };
+
+  const isObjectTrend = trend && typeof trend === 'object';
+  const isStringTrend = trend && typeof trend === 'string';
 
   return (
     <div
@@ -52,7 +59,7 @@ export const StatCard: React.FC<StatCardProps> = ({
       />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
         <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          {title}
+          {displayTitle}
         </span>
         {icon && (
           <div
@@ -78,7 +85,7 @@ export const StatCard: React.FC<StatCardProps> = ({
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
         {subtitle && <span style={{ color: 'var(--text-dim)' }}>{subtitle}</span>}
-        {trend && (
+        {isObjectTrend && (
           <span
             style={{
               color: trend.isPositive ? 'var(--color-success)' : 'var(--color-danger)',
@@ -86,6 +93,17 @@ export const StatCard: React.FC<StatCardProps> = ({
             }}
           >
             {trend.value}
+          </span>
+        )}
+        {isStringTrend && (
+          <span
+            style={{
+              color: trend === 'up' ? 'var(--color-success)' : trend === 'down' ? 'var(--color-danger)' : 'var(--text-muted)',
+              fontWeight: 600,
+              textTransform: 'capitalize',
+            }}
+          >
+            {trend === 'up' ? '↑ Positivo' : trend === 'down' ? '↓ Negativo' : '—'}
           </span>
         )}
       </div>

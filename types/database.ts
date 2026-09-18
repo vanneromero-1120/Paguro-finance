@@ -605,19 +605,307 @@ export interface TaxPeriodWithCalculations extends TaxPeriod {
   purchases_items?: TaxSourcePurchaseItem[];
 }
 
+export type DocumentEntityType =
+  | 'sales_invoice'
+  | 'purchase_document'
+  | 'expense'
+  | 'payment'
+  | 'customer'
+  | 'supplier'
+  | 'tax_period';
+
+export type DocumentStatus = 'active' | 'replaced' | 'archived';
+
 export interface DocumentAttachment {
   id: string;
   company_id: string;
-  entity_type: string;
+  entity_type: DocumentEntityType | string;
   entity_id: string;
   storage_path: string;
   file_name: string;
   mime_type: string;
   file_size_bytes: number;
   version: number;
-  status: 'active' | 'replaced' | 'archived';
+  status: DocumentStatus;
+  notes?: string | null;
   uploaded_by?: string | null;
   uploaded_at: string;
+  // Enriched presentation fields
+  uploader_name?: string | null;
+  entity_label?: string | null;
+  signed_url?: string | null;
+}
+
+export interface CreateDocumentInput {
+  entity_type: DocumentEntityType;
+  entity_id: string;
+  notes?: string;
+}
+
+export interface DocumentFilterInput {
+  entity_type?: string;
+  status?: string;
+  search?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+export interface AttachableEntity {
+  id: string;
+  entity_type: DocumentEntityType;
+  label: string;
+  sublabel?: string;
+  date?: string;
+}
+
+// ----------------------------------------------------------------------------
+// Reports Types & Interfaces
+// ----------------------------------------------------------------------------
+
+export type ReportType =
+  | 'sales'
+  | 'expenses'
+  | 'cxc'
+  | 'cxp'
+  | 'iva'
+  | 'inventory'
+  | 'customer_balances'
+  | 'supplier_balances'
+  | 'profitability';
+
+export interface ReportFilterInput {
+  company_id?: string;
+  date_from?: string;
+  date_to?: string;
+  status?: string;
+  customer_id?: string;
+  supplier_id?: string;
+  product_id?: string;
+  tax_period_id?: string;
+  category?: string;
+  aging_bucket?: 'current' | '1_30' | '31_60' | '61_90' | '90_plus' | 'all';
+}
+
+export interface SalesReportItem {
+  id: string;
+  invoice_number: string;
+  customer_name: string;
+  customer_tax_id?: string;
+  issue_date: string;
+  due_date: string;
+  subtotal: number;
+  tax_total: number;
+  total: number;
+  paid_amount: number;
+  balance_due: number;
+  status: string;
+}
+
+export interface SalesReportData {
+  summary: {
+    total_invoiced: number;
+    total_subtotal: number;
+    total_tax: number;
+    total_collected: number;
+    total_balance_due: number;
+    invoice_count: number;
+  };
+  items: SalesReportItem[];
+}
+
+export interface ExpensesReportItem {
+  id: string;
+  document_number: string;
+  supplier_name: string;
+  supplier_tax_id?: string;
+  category: string;
+  document_date: string;
+  due_date: string;
+  subtotal: number;
+  tax_total: number;
+  total: number;
+  paid_amount: number;
+  balance_due: number;
+  status: string;
+}
+
+export interface ExpensesReportData {
+  summary: {
+    total_expenses: number;
+    total_subtotal: number;
+    total_tax: number;
+    total_paid: number;
+    total_balance_due: number;
+    document_count: number;
+  };
+  items: ExpensesReportItem[];
+  by_category: { category: string; total: number; count: number }[];
+}
+
+export interface AccountsReceivableItem {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  customer_tax_id: string;
+  invoice_number: string;
+  issue_date: string;
+  due_date: string;
+  total: number;
+  paid_amount: number;
+  balance_due: number;
+  status: string;
+  days_overdue: number;
+  aging_bucket: 'current' | '1_30' | '31_60' | '61_90' | '90_plus';
+}
+
+export interface AccountsReceivableReportData {
+  summary: {
+    total_receivable: number;
+    current_amount: number;
+    overdue_1_30: number;
+    overdue_31_60: number;
+    overdue_31_90?: number;
+    overdue_61_90: number;
+    overdue_90_plus: number;
+    invoice_count: number;
+  };
+  items: AccountsReceivableItem[];
+}
+
+export interface AccountsPayableItem {
+  id: string;
+  supplier_id: string;
+  supplier_name: string;
+  supplier_tax_id: string;
+  document_number: string;
+  document_date: string;
+  due_date: string;
+  total: number;
+  paid_amount: number;
+  balance_due: number;
+  status: string;
+  days_overdue: number;
+  aging_bucket: 'current' | '1_30' | '31_60' | '61_90' | '90_plus';
+}
+
+export interface AccountsPayableReportData {
+  summary: {
+    total_payable: number;
+    current_amount: number;
+    overdue_1_30: number;
+    overdue_31_60: number;
+    overdue_61_90: number;
+    overdue_90_plus: number;
+    document_count: number;
+  };
+  items: AccountsPayableItem[];
+}
+
+export interface IvaReportItem {
+  period_id: string;
+  period_name: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  sales_vat: number;
+  purchases_vat: number;
+  adjustments_total: number;
+  net_vat: number;
+}
+
+export interface IvaReportData {
+  summary: {
+    total_sales_vat: number;
+    total_purchases_vat: number;
+    total_adjustments: number;
+    estimated_vat_payable: number;
+  };
+  items: IvaReportItem[];
+}
+
+export interface InventoryReportItem {
+  id: string;
+  sku: string;
+  name: string;
+  category_name?: string;
+  current_stock: number;
+  minimum_stock: number;
+  unit_cost: number;
+  unit_price: number;
+  valuation: number;
+  is_low_stock: boolean;
+}
+
+export interface InventoryReportData {
+  summary: {
+    total_skus: number;
+    total_units: number;
+    total_valuation: number;
+    low_stock_count: number;
+  };
+  items: InventoryReportItem[];
+}
+
+export interface CustomerBalanceItem {
+  customer_id: string;
+  customer_name: string;
+  customer_tax_id: string;
+  total_invoiced: number;
+  total_paid: number;
+  current_balance: number;
+  open_invoices_count: number;
+}
+
+export interface CustomerBalancesReportData {
+  summary: {
+    total_customers: number;
+    total_invoiced: number;
+    total_collected: number;
+    total_outstanding: number;
+  };
+  items: CustomerBalanceItem[];
+}
+
+export interface SupplierBalanceItem {
+  supplier_id: string;
+  supplier_name: string;
+  supplier_tax_id: string;
+  total_billed: number;
+  total_paid: number;
+  current_balance: number;
+  open_bills_count: number;
+}
+
+export interface SupplierBalancesReportData {
+  summary: {
+    total_suppliers: number;
+    total_billed: number;
+    total_paid: number;
+    total_outstanding: number;
+  };
+  items: SupplierBalanceItem[];
+}
+
+export interface ProductProfitabilityItem {
+  product_id: string;
+  sku: string;
+  name: string;
+  units_sold: number;
+  revenue: number;
+  cogs: number;
+  gross_profit: number;
+  gross_margin_pct: number;
+}
+
+export interface ProductProfitabilityReportData {
+  summary: {
+    total_units_sold: number;
+    total_revenue: number;
+    total_cogs: number;
+    total_gross_profit: number;
+    overall_margin_pct: number;
+  };
+  items: ProductProfitabilityItem[];
 }
 
 export interface AuditLog {

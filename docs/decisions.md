@@ -193,4 +193,19 @@ This document tracks significant architectural and technical decisions made duri
 - **Alternatives Considered**: Automatically recalculating closed periods upon past invoice changes (rejected as it violates accounting period closing principles); hard-coding bi-monthly DIAN calendars (rejected to support arbitrary fiscal years and special regimes).
 - **Impact**: True operational VAT traceability, immutable historical period locks, and complete mock decoupling.
 
+### ADR-020: Private Document Storage, Multi-Tenant Storage Policies, and Authoritative Financial Reporting Engine
+- **Status**: Accepted
+- **Context**: Paguro Finance manages sensitive financial documents (electronic invoices, purchase bills, tax certificates, bank payment receipts) and core management reporting (Sales, Expenses, Accounts Receivable Aging, Accounts Payable Aging, VAT Summary, Inventory Valuation, Customer Balances, Supplier Balances, and Product Profitability). Public URLs or client-side report calculations violate multi-tenant security and accounting audit standards.
+- **Decision**:
+  1. **Private Supabase Storage Bucket**: The bucket `financial-documents` is configured with `public = false`. All file access is governed through 60-second time-to-live signed URLs (`storage.from('financial-documents').createSignedUrl(...)`) generated after company authorization checks.
+  2. **Multi-Tenant Path Isolation & Storage Policies**: Objects are organized under `{company_id}/{entity_type}/{entity_id}/{timestamp}_{filename}`. PostgreSQL RLS policies on `storage.objects` verify that the root path component matches the user's active company membership before permitting `SELECT`, `INSERT`, or `DELETE`.
+  3. **Database-Level Cross-Company Integrity**: The `validate_cross_company_integrity()` trigger validates that the referenced `entity_id` belongs to `NEW.company_id` for each entity type (`sales_invoice`, `purchase_document`, `payment`, `customer`, `supplier`, `tax_period`).
+  4. **Server-Side Financial Reporting**: Balances, aging buckets (`current`, `1-30`, `31-60`, `61-90`, `90+` days overdue), inventory valuation (`current_stock * unit_cost`), and product profitability (Revenue, COGS, Gross Margin) are computed strictly on the server through dedicated Server Actions in `lib/actions/reports.ts`.
+  5. **CSV Export with Audit Logging**: The export pipeline outputs RFC 4180 compliant CSV files with UTF-8 BOM encoding for seamless Excel compatibility and records an immutable log in `audit_logs` (`action = 'REPORT_EXPORT'`).
+  6. **Role-Based Access Control**: `VIEWER` and `ACCOUNTANT` roles enjoy read-only access to documents and reports; document upload and archive operations are strictly restricted to `SUPER_ADMIN`, `ADMIN`, `FINANCE`, and `OPERATIONS`.
+- **Reason**: Guarantees zero leak of financial documents across companies, eliminates permanent public URL exposure, ensures reliable aging analysis, and decouples both Documents and Reports entirely from `mock-store.ts`.
+- **Alternatives Considered**: Serving files through public bucket URLs (rejected as financial documents contain confidential PII and tax data); computing aging buckets client-side (rejected as client clock skew produces conflicting reports).
+- **Impact**: Enterprise-grade document confidentiality, authoritative consolidated reporting, and complete decoupling of `app/documents/page.tsx` and `app/reports/page.tsx` from mock data.
+
+
 

@@ -281,19 +281,24 @@ Authorized manual tax adjustments linked to specific periods.
 - `created_at`: `TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
 ### 2.17 `documents`
-Metadata for physical/digital file attachments stored in Supabase Storage.
+Metadata for physical/digital file attachments stored in Supabase Storage (`financial-documents` private bucket).
 - `id`: `UUID PRIMARY KEY DEFAULT gen_random_uuid()`
 - `company_id`: `UUID NOT NULL REFERENCES companies(id) ON DELETE RESTRICT`
-- `entity_type`: `VARCHAR(50) NOT NULL` (e.g., 'sales_invoice', 'purchase_document', 'payment', 'tax_period')
+- `entity_type`: `VARCHAR(50) NOT NULL` (e.g., 'sales_invoice', 'purchase_document', 'expense', 'payment', 'customer', 'supplier', 'tax_period')
 - `entity_id`: `UUID NOT NULL`
-- `storage_path`: `TEXT NOT NULL`
+- `storage_path`: `TEXT NOT NULL` (Format: `{company_id}/{entity_type}/{entity_id}/{timestamp}_{filename}`)
 - `file_name`: `VARCHAR(255) NOT NULL`
-- `mime_type`: `VARCHAR(100) NOT NULL`
+- `mime_type`: `VARCHAR(100) NOT NULL` (e.g., 'application/pdf', 'image/jpeg', 'image/png')
 - `file_size_bytes`: `BIGINT NOT NULL`
 - `version`: `INTEGER NOT NULL DEFAULT 1`
 - `status`: `VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'replaced', 'archived'))`
+- `notes`: `TEXT`
 - `uploaded_by`: `UUID REFERENCES profiles(id)`
 - `uploaded_at`: `TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- **Storage Bucket**: `financial-documents` (private, 25MB file limit, 60s signed URL TTL).
+- **Storage Policies**: Multi-tenant folder RLS on `storage.objects` (`((storage.foldername(name))[1])::uuid = company_id`).
+- **Integrity**: Enforced by trigger `validate_cross_company_integrity()` ensuring referenced `entity_id` belongs to `company_id`.
+
 
 ### 2.18 `audit_logs`
 Immutable audit ledger for security, financial changes, and governance.

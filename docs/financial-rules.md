@@ -148,3 +148,59 @@ $$
    - Adjustments cannot be added to a `'closed'` period without an explicit administrative reopen action.
    - Reopening a closed period requires `SUPER_ADMIN`, `ADMIN`, or `ACCOUNTANT` role and generates an immutable record in `audit_logs`.
 
+---
+
+## 5. Financial Reporting & Aging Rules
+
+### 5.1 Accounts Receivable (A/R) & Accounts Payable (A/P) Aging
+
+Aging is calculated server-side based on the calendar day difference between the query reference date ($T_{\text{as\_of}}$, default UTC today) and the document's contractual due date ($T_{\text{due}}$):
+
+$$
+\text{days\_overdue} = \lfloor \frac{T_{\text{as\_of}} - T_{\text{due}}}{86,400,000 \text{ ms}} \rfloor
+$$
+
+Standard aging classification buckets:
+- **Current (Al Día)**: $\text{days\_overdue} \le 0$ (document is not yet due).
+- **1 to 30 Days**: $1 \le \text{days\_overdue} \le 30$.
+- **31 to 60 Days**: $31 \le \text{days\_overdue} \le 60$.
+- **61 to 90 Days**: $61 \le \text{days\_overdue} \le 90$.
+- **90+ Days**: $\text{days\_overdue} > 90$.
+
+Aging aggregations strictly apply to open balances:
+$$
+\text{balance\_due} = \max(0, \text{total} - \text{paid\_amount})
+$$
+Fully paid documents ($\text{balance\_due} = 0$) are excluded from aging summary metrics.
+
+### 5.2 Inventory Valuation
+
+1. **Current Stock derivation**: Current stock is never stored as an arbitrary mutable counter; it is derived by summing all historical inventory movements:
+   $$
+   \text{current\_stock} = \sum \text{quantity\_delta}_i
+   $$
+2. **Valuation**: Total asset value of on-hand inventory is computed using unit cost price:
+   $$
+   \text{valuation} = \text{round}(\max(0, \text{current\_stock}) \times \text{cost\_price}, 2)
+   $$
+3. **Low Stock Threshold**: Flagged when $\text{current\_stock} \le \text{min\_stock}$.
+
+### 5.3 Product Profitability Formulation
+
+Profitability is computed from issued, partial, and paid sales invoices:
+1. **Net Revenue**: $\text{revenue} = \sum (\text{quantity} \times \text{unit\_price} - \text{discount})$.
+2. **Cost of Goods Sold (COGS)**: $\text{cogs} = \sum (\text{quantity} \times \text{product.cost\_price})$.
+3. **Gross Profit**: $\text{gross\_profit} = \text{revenue} - \text{cogs}$.
+4. **Gross Margin Percentage**:
+   $$
+   \text{gross\_margin\_pct} = \begin{cases}
+   \text{round}((\frac{\text{gross\_profit}}{\text{revenue}}) \times 100, 2) & \text{if } \text{revenue} > 0 \\
+   0 & \text{otherwise}
+   \end{cases}
+   $$
+
+### 5.4 Export Security & Compliance
+
+- All export routines must enforce multi-tenant company isolation; cross-company data leakage is structurally impossible at both RLS and server action layers.
+- Export operations generate an immutable record in `audit_logs` (`action = 'REPORT_EXPORT'`).
+- CSV files must be encoded with UTF-8 BOM (`\uFEFF`) and RFC 4180 delimiter escaping to prevent CSV injection and display Spanish accented characters properly in Microsoft Excel.

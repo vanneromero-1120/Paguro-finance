@@ -34,8 +34,10 @@ The implementation of **Paguro Finance** progresses through systematic milestone
 - [x] **Products & Inventory Base**: SKU categorization, tax rate binding, movement recording (PURCHASE, SALE, RETURN_IN, RETURN_OUT), and live derived stock tracking.
 - [x] **Sales Invoices & Customer Payments (CxC)**: Live multi-line invoice generator, concurrency-safe sequential numbering (`generate_next_sales_invoice_number`), status workflows, automatic inventory deduction, customer payments, and payment allocations.
 - [x] **Purchases & Expenses (CxP)**: Supplier document registration, deductible VAT classification, retention calculation, inventory reception, outbound payments, and payment allocations.
-- [x] **Value Added Tax (IVA) & Tax Periods (CURRENT COMPLETED MILESTONE)**: Configurable period calculation, live line-level generated vs deductible tax reconciliation, manual fiscal adjustments, full audit logging, and immutable period closing locked by database triggers.
-- [ ] **Documents + Reports (NEXT MILESTONE)**: Tabular financial reports, statement of cash collections, aging accounts, and secure private document storage explorer.
-- [ ] **Dashboard Migration**: Migrate dashboard KPIs and chart visualizations to live Supabase data.
-- [ ] **Final Production Cleanup**: Complete removal of mock-store.ts and final deployment verification.
+- [x] **Value Added Tax (IVA) & Tax Periods**: Configurable period calculation, live line-level generated vs deductible tax reconciliation, manual fiscal adjustments, full audit logging, and immutable period closing locked by database triggers.
+- [x] **Documents + Reports (COMPLETED MILESTONE)**: Private Supabase Storage (`financial-documents`), multi-tenant RLS folder policies, 60s signed URLs, 9 authoritative financial reports (Sales, Expenses, A/R with 5 aging buckets, A/P with aging, IVA Summary, Inventory Valuation, Customer/Supplier Balances, Product Profitability), RFC 4180 CSV exports with audit logging, and 100% decoupling from `mock-store.ts`.
+- [ ] **Dashboard Real Data Migration (NEXT MILESTONE)**: Migrate dashboard financial KPIs, cash flow charts, and alert widgets to live Supabase data.
+- [ ] **Settings / Audit Cleanup & Final Mock Removal**: Decouple remaining settings pages and remove `mock-store.ts` globally.
+- [ ] **Final Production QA & Deployment Verification**: End-to-end multi-role audit and zero-mock verification.
+
 
