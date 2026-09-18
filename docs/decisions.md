@@ -146,3 +146,19 @@ This document tracks significant architectural and technical decisions made duri
 - **Alternatives Considered**: Direct editable `stock_quantity` column on `products` (rejected due to lack of traceability); FIFO/LIFO lot tracking (deferred to advanced manufacturing milestone as specified in architecture).
 - **Impact**: 100% auditable inventory history, strict multi-company isolation, zero negative stock anomalies, and automated valuation metrics.
 
+---
+
+## ADR-017: Sales Invoices, Customer Payments, Concurrency-Safe Numbering, and Inventory Synchronization
+- **Date**: 2026-09-17
+- **Decision**: Decouple Sales Invoices and Customer Payments completely from `mock-store.ts` and transition to the live Supabase architecture.
+  1. **Concurrency-Safe Numbering**: Implement `public.generate_next_sales_invoice_number(p_company_id)` to generate sequential formatted numbers (`FAC-YYYY-00001`) atomically scoped to the company and calendar year, backed by the composite unique index `(company_id, invoice_number)`.
+  2. **Authoritative Calculation & Line Item Invariants**: Client sums are untrusted. Calculations occur server-side with financial half-up rounding (`calculateLineItem` and `calculateDocumentTotals`). Database triggers `trg_calc_sales_invoice_item_values` and `trg_recalc_sales_invoice_totals` guarantee that line totals, tax sums, and invoice headers remain strictly consistent.
+  3. **Strict Lifecycle**: Only invoices in `draft` status may have line items or parameters modified. Finalized invoices (`issued`, `partial`, `paid`) cannot be directly edited or deleted; modifications require voiding or adjustments. An invoice with active recorded payments (`paid_total > 0`) cannot be voided until payments are reversed or voided first.
+  4. **Inventory Synchronization**: Draft invoices do not affect inventory. When an invoice transitions to `issued`, the server verifies stock availability and creates authoritative `SALE` movements (`quantity_delta = -quantity`) for physical tracked products. If an issued invoice is subsequently voided, compensatory `RETURN_IN` movements (`quantity_delta = +quantity`) are automatically recorded under `source_type = 'sales_invoice_void'`.
+  5. **Payments & Overpayment Prevention**: Customer payments are recorded as first-class `payments` linked to `sales_invoices` via `payment_allocations`. Overpayments (`amount > balance_due`) and payments on `void` or `paid` invoices are strictly rejected. The database trigger `trg_payment_allocation_sync` atomically synchronizes `paid_total`, `balance_due`, and status (`partial` or `paid`).
+  6. **Authorization & Audit**: Mutations are restricted to `SUPER_ADMIN`, `ADMIN`, and `FINANCE`. Void operations are strictly restricted to `SUPER_ADMIN` and `ADMIN`. All creations, status changes, voids, and payments append immutable entries to `audit_logs`.
+- **Reason**: Sales invoices and cash receipts represent legal fiscal commitments and determine revenue, tax liabilities (IVA generado), and accounts receivable. Strong database triggers, atomic numbering, and strict role permissions prevent corruption and fraud.
+- **Alternatives Considered**: Frontend-generated invoice numbers (rejected due to collision risk); direct destructive deletion of invoices (rejected to preserve legal financial audit trails).
+- **Impact**: Zero phantom invoice numbers, mathematically indisputable line item taxes, automated stock decrement/increment, and complete company isolation.
+
+

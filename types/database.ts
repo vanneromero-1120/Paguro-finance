@@ -278,6 +278,50 @@ export interface SalesInvoiceItem {
   created_at: string;
 }
 
+export interface CreateInvoiceItemInput {
+  product_id?: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  discount_amount?: number;
+  tax_rate_id: string;
+  tax_rate?: number;
+}
+
+export interface CreateInvoiceInput {
+  customer_id: string;
+  issue_date: string;
+  due_date: string;
+  currency_code?: string;
+  notes?: string | null;
+  status?: 'draft' | 'issued';
+  items: CreateInvoiceItemInput[];
+}
+
+export interface UpdateInvoiceInput {
+  customer_id?: string;
+  issue_date?: string;
+  due_date?: string;
+  currency_code?: string;
+  notes?: string | null;
+  items?: CreateInvoiceItemInput[];
+}
+
+export interface InvoiceWithCustomer extends SalesInvoice {
+  customer?: Customer | null;
+}
+
+export interface InvoiceItemWithDetails extends SalesInvoiceItem {
+  product?: Product | null;
+  tax_rate_obj?: TaxRate | null;
+}
+
+export interface InvoiceWithDetails extends SalesInvoice {
+  customer?: Customer | null;
+  items: InvoiceItemWithDetails[];
+  payments?: (PaymentAllocation & { payment: Payment })[];
+}
+
 export type PurchaseDocumentStatus = 'draft' | 'open' | 'partial' | 'paid' | 'void';
 
 export interface PurchaseDocument {
@@ -344,6 +388,20 @@ export interface PaymentAllocation {
   document_id: string;
   amount: number;
   created_at: string;
+}
+
+export interface CreatePaymentInput {
+  invoice_id: string;
+  amount: number;
+  payment_date: string;
+  method: string;
+  reference?: string | null;
+  notes?: string | null;
+}
+
+export interface PaymentWithDetails extends Payment {
+  counterparty?: Customer | Supplier | null;
+  allocations?: (PaymentAllocation & { invoice?: SalesInvoice | null })[];
 }
 
 export type InventoryMovementType = 

@@ -53,6 +53,17 @@ $$
 - `overdue`: $\text{balance\_due} > 0$ and $\text{due\_date} < \text{current\_date}$.
 - `void`: Canceled before payment or reversed; excluded from revenue and KPI metrics.
 
+### 2.3 Products & Inventory Synchronization
+1. **Draft Invoices**:
+   Draft invoices do NOT reserve, hold, or deduct inventory stock. Stock remains untouched while an invoice is in `draft`.
+2. **Finalization / Issuance (`draft` -> `issued`)**:
+   When an invoice is issued, the system checks stock availability for all physical tracked items. If sufficient, it inserts an authoritative `SALE` movement (`quantity_delta = -quantity`) with `source_type = 'sales_invoice'` and `source_id = invoice.id`.
+3. **Idempotency**:
+   The issuance routine verifies if movements with `source_type = 'sales_invoice'` and `source_id = invoice.id` already exist to prevent duplicate deductions upon retry.
+4. **Void Reversal (`issued` -> `void`)**:
+   When an issued invoice is voided, compensatory `RETURN_IN` movements (`quantity_delta = +abs(quantity)`) are created with `source_type = 'sales_invoice_void'` to restore physical stock balance.
+
+
 ---
 
 ## 3. Payments & Allocations Engine
