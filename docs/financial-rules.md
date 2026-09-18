@@ -110,22 +110,41 @@ $$
 
 ## 4. Value Added Tax (IVA) Engine
 
-1. **Generated Tax (IVA Generado)**:
-   Calculated as the sum of all tax lines from valid, non-void `sales_invoices` with `issue_date` within the selected `tax_period`:
+> [!IMPORTANT]
+> **Operational Control Disclaimer**: Paguro Finance provides operational tax calculations and period tracking based on real transaction data. It is NOT an official tax filing system (DIAN) and does not replace the certified review and submission of tax forms by a licensed accountant or tax auditor.
+
+1. **Generated Tax (IVA Generado - Ventas)**:
+   Calculated from finalized sales invoices (`status IN ('issued', 'partial', 'paid')`) with `issue_date` within the tax period date range ($[\text{period\_start}, \text{period\_end}]$):
    $$
-   \text{generated\_tax} = \sum_{\text{invoices}} \text{tax\_total}
+   \text{generated\_tax} = \sum_{\text{eligible invoices}} \text{tax\_total}
    $$
-2. **Deductible Tax (IVA Descontable)**:
-   Calculated as the sum of all eligible deductible tax amounts from valid, non-void `purchase_documents` with `document_date` within the selected `tax_period`:
+   Draft and void invoices are strictly excluded from generated tax.
+
+2. **Deductible Tax (IVA Descontable - Compras)**:
+   Calculated from approved purchase documents and expenses (`status IN ('open', 'partial', 'paid')`) with `document_date` within the tax period date range ($[\text{period\_start}, \text{period\_end}]$):
    $$
-   \text{deductible\_tax} = \sum_{\text{purchases}} \text{deductible\_tax\_total}
+   \text{deductible\_tax} = \sum_{\text{eligible purchases}} \text{deductible\_tax\_total}
    $$
-3. **Net Tax Payable / Credit Balance**:
+   Draft and void purchases are strictly excluded from deductible tax.
+
+3. **Signed Manual Adjustments**:
+   Manual adjustments are tracked in `tax_adjustments` with strict audit logging:
+   - Debit adjustments (`INCREASE_GENERATED`, `DECREASE_DEDUCTIBLE`): $\Delta > 0$ (increase net tax payable).
+   - Credit adjustments (`DECREASE_GENERATED`, `INCREASE_DEDUCTIBLE`, `OTHER_CREDIT`): $\Delta < 0$ (decrease net tax payable).
    $$
-   \text{net\_tax} = \text{generated\_tax} - \text{deductible\_tax} + \sum \text{tax\_adjustments}
+   \text{adjustments} = \sum \Delta_k
    $$
-4. **Period Closing Lockdown**:
-   Once a tax period status is set to `closed`:
-   - No sales invoices or purchase documents can have dates falling into that period.
-   - Any document previously in that period cannot be edited or voided.
-   - To make corrections, an `ADMIN` must perform an explicit, audited `reopen` or register an adjustment document in the current open period.
+
+4. **Estimated Net Tax Formulation**:
+   $$
+   \text{net\_tax} = \text{generated\_tax} - \text{deductible\_tax} + \text{adjustments}
+   $$
+   - If $\text{net\_tax} \ge 0$: Estimated tax payable to the tax authority.
+   - If $\text{net\_tax} < 0$: Accumulated tax credit / Saldo a favor.
+
+5. **Period Locking & Mutation Lockdown**:
+   - Statuses: `'open'` $\rightarrow$ `'reviewed'` $\rightarrow$ `'closed'` $\rightarrow$ `'reopened'`.
+   - When a tax period is `'closed'`, the database trigger `prevent_closed_tax_period_modification` immediately blocks inserting, modifying, or deleting sales invoices or purchase documents whose dates fall within that period.
+   - Adjustments cannot be added to a `'closed'` period without an explicit administrative reopen action.
+   - Reopening a closed period requires `SUPER_ADMIN`, `ADMIN`, or `ACCOUNTANT` role and generates an immutable record in `audit_logs`.
+

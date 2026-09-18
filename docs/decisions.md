@@ -175,4 +175,22 @@ This document tracks significant architectural and technical decisions made duri
 - **Alternatives Considered**: Storing expenses and purchases in separate disconnected tables (rejected due to schema duplication and dual payment allocation complexity); allowing destructive deletions (rejected to preserve accounting audit trails).
 - **Impact**: Real-time accounts payable tracking, accurate deductible IVA reporting, automated inventory reception, and zero reliance on mock storage.
 
+## ADR-019: Operational IVA Calculation, Configurable Tax Periods, and Fiscal Period Locking
+- **Date**: 2026-09-17
+- **Decision**: Decouple IVA and Tax Periods completely from `mock-store.ts` and transition to the live Supabase architecture (`tax_periods`, `tax_adjustments`, `sales_invoices`, `purchase_documents`).
+  1. **Operational Scope Disclaimer**: Paguro Finance is explicitly an internal operational financial control tool, NOT an official DIAN filing system. Tax calculations provide operational visibility and period traceability for management and accounting review, but do not replace certified tax returns.
+  2. **Configurable Tax Periods**: Tax periods are fully configurable by date intervals (`period_start` to `period_end`) and not hard-coded to any single periodicity. Consecutive non-overlapping intervals are enforced per company and tax type.
+  3. **Authoritative Transaction Filtering**:
+     - **IVA Generado**: Derived strictly from non-void, finalized sales invoices (`status IN ('issued', 'partial', 'paid')`) with `issue_date` in the period. Draft and void invoices are strictly excluded.
+     - **IVA Descontable**: Derived strictly from non-void, approved purchase documents (`status IN ('open', 'partial', 'paid')`) with `document_date` in the period. Draft and void purchases are strictly excluded.
+  4. **Estimated Net Tax Formulation**:
+     $$\text{net\_tax} = \text{generated\_tax} - \text{deductible\_tax} + \text{adjustments}$$
+     - A positive result represents estimated tax payable to the tax authority.
+     - A negative result represents an accumulated tax credit (saldo a favor).
+  5. **Signed Manual Adjustments**: Authorized users (`SUPER_ADMIN`, `ADMIN`, `ACCOUNTANT`) can register audited adjustments (`INCREASE_GENERATED`, `DECREASE_GENERATED`, `INCREASE_DEDUCTIBLE`, `DECREASE_DEDUCTIBLE`, `OTHER_CREDIT`). Debit adjustments increase net payable tax; credit adjustments decrease net payable tax.
+  6. **Strict Period Locking**: The status lifecycle is `'open'` -> `'reviewed'` -> `'closed'` -> `'reopened'`. When marked `'closed'`, the database trigger `prevent_closed_tax_period_modification` immediately blocks any insertion, update, or deletion of sales invoices or purchase documents falling within the period. Reopening requires administrative privileges and leaves an audit trail in `audit_logs`.
+- **Reason**: Protect financial reporting integrity from retroactive document tampering while providing transparent drill-down into source records.
+- **Alternatives Considered**: Automatically recalculating closed periods upon past invoice changes (rejected as it violates accounting period closing principles); hard-coding bi-monthly DIAN calendars (rejected to support arbitrary fiscal years and special regimes).
+- **Impact**: True operational VAT traceability, immutable historical period locks, and complete mock decoupling.
+
 

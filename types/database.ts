@@ -529,21 +529,80 @@ export interface TaxPeriod {
   adjustments: number;
   net_tax: number;
   status: TaxPeriodStatus;
+  notes?: string | null;
   closed_at?: string | null;
   closed_by?: string | null;
+  created_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
+export type TaxAdjustmentType =
+  | 'INCREASE_GENERATED'
+  | 'DECREASE_GENERATED'
+  | 'INCREASE_DEDUCTIBLE'
+  | 'DECREASE_DEDUCTIBLE'
+  | 'OTHER_CREDIT';
+
 export interface TaxAdjustment {
   id: string;
   tax_period_id: string;
-  adjustment_type: 'INCREASE_GENERATED' | 'DECREASE_GENERATED' | 'INCREASE_DEDUCTIBLE' | 'DECREASE_DEDUCTIBLE' | 'OTHER_CREDIT';
+  adjustment_type: TaxAdjustmentType;
   amount: number;
   reason: string;
   document_id?: string | null;
   created_by?: string | null;
   created_at: string;
+}
+
+export interface CreateTaxPeriodInput {
+  tax_type?: string;
+  period_start: string;
+  period_end: string;
+  notes?: string | null;
+}
+
+export interface CreateTaxAdjustmentInput {
+  tax_period_id: string;
+  adjustment_type: TaxAdjustmentType;
+  amount: number;
+  reason: string;
+  document_id?: string | null;
+}
+
+export interface TaxSourceSalesItem {
+  id: string;
+  invoice_number: string;
+  issue_date: string;
+  customer_name: string;
+  customer_tax_id?: string | null;
+  subtotal: number;
+  tax_total: number;
+  total: number;
+  status: string;
+}
+
+export interface TaxSourcePurchaseItem {
+  id: string;
+  document_number: string;
+  document_date: string;
+  supplier_name: string;
+  supplier_tax_id?: string | null;
+  category: string;
+  subtotal: number;
+  deductible_tax_total: number;
+  total: number;
+  status: string;
+}
+
+export interface TaxPeriodWithCalculations extends TaxPeriod {
+  sales_count: number;
+  sales_taxable_base: number;
+  purchases_count: number;
+  purchases_taxable_base: number;
+  adjustments_list: TaxAdjustment[];
+  sales_items?: TaxSourceSalesItem[];
+  purchases_items?: TaxSourcePurchaseItem[];
 }
 
 export interface DocumentAttachment {

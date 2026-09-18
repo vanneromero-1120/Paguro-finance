@@ -29,13 +29,13 @@ The implementation of **Paguro Finance** progresses through systematic milestone
 
 ---
 
-## Milestone 3: Core Operational Business Modules (NEXT RECOMMENDED MILESTONES)
-- [ ] **PHASE 13: Customers & Suppliers Master Data**: Real-time CRUD with DIAN tax ID verification, payment terms, and live credit balance tracking.
-- [ ] **PHASE 14: Products Catalog & Inventory Stock**: SKU categorization, tax rate binding, movement recording (receptions, shipments, scrap), and derived inventory valuation.
-- [ ] **PHASE 15: Sales Invoices (CxC)**: Live multi-line invoice generator, consecutive numbering sequences, status workflows (draft, issued, paid, partial, voided), and PDF attachment generation.
-- [ ] **PHASE 16: Purchases & Expenses (CxP)**: Supplier invoice registration, deductible VAT classification, retention calculation, and expense approval workflows.
-- [ ] **PHASE 17: Payments & Ledger Allocations**: Inbound customer collections and outbound supplier disbursements with multi-invoice allocation and real-time balance reconciliation.
-- [ ] **PHASE 18: Value Added Tax (IVA) Engine**: Bimonthly/quarterly period calculation, generated vs deductible tax reconciliation, manual fiscal adjustments, and immutable period closing.
-- [ ] **PHASE 19: Financial Reports & Analytics**: Tabular reports (Statement of Cash Collections, Aging Accounts Receivable/Payable, VAT Declaration Support) and CSV/Excel exports.
-- [ ] **PHASE 20: Storage Documents UI Explorer**: Document search, multi-file upload, and secure download using signed URLs.
-- [ ] **PHASE 21: Full Production Deployment**: Cloud Supabase connectivity, staging deployment, and automated CI/CD pipeline.
+## Milestone 3: Core Operational Business Modules
+- [x] **Customers & Suppliers Master Data**: Real-time multi-tenant management with tax ID verification, payment terms, and live Supabase persistence.
+- [x] **Products & Inventory Base**: SKU categorization, tax rate binding, movement recording (PURCHASE, SALE, RETURN_IN, RETURN_OUT), and live derived stock tracking.
+- [x] **Sales Invoices & Customer Payments (CxC)**: Live multi-line invoice generator, concurrency-safe sequential numbering (`generate_next_sales_invoice_number`), status workflows, automatic inventory deduction, customer payments, and payment allocations.
+- [x] **Purchases & Expenses (CxP)**: Supplier document registration, deductible VAT classification, retention calculation, inventory reception, outbound payments, and payment allocations.
+- [x] **Value Added Tax (IVA) & Tax Periods (CURRENT COMPLETED MILESTONE)**: Configurable period calculation, live line-level generated vs deductible tax reconciliation, manual fiscal adjustments, full audit logging, and immutable period closing locked by database triggers.
+- [ ] **Documents + Reports (NEXT MILESTONE)**: Tabular financial reports, statement of cash collections, aging accounts, and secure private document storage explorer.
+- [ ] **Dashboard Migration**: Migrate dashboard KPIs and chart visualizations to live Supabase data.
+- [ ] **Final Production Cleanup**: Complete removal of mock-store.ts and final deployment verification.
+

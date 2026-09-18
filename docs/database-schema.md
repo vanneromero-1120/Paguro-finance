@@ -261,8 +261,10 @@ Configurable tax periods for periodic VAT reconciliation.
 - `adjustments`: `NUMERIC(14, 2) NOT NULL DEFAULT 0.00`
 - `net_tax`: `NUMERIC(14, 2) NOT NULL DEFAULT 0.00`
 - `status`: `VARCHAR(20) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'reviewed', 'closed', 'reopened'))`
+- `notes`: `TEXT`
 - `closed_at`: `TIMESTAMPTZ`
 - `closed_by`: `UUID REFERENCES profiles(id)`
+- `created_by`: `UUID REFERENCES profiles(id)`
 - `created_at`: `TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 - `updated_at`: `TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 - **Constraint**: `UNIQUE(company_id, tax_type, period_start, period_end)`
