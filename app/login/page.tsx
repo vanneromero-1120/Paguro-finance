@@ -1,14 +1,15 @@
 'use client';
 
 // ============================================================================
-// Paguro Finance - Production Authentication Portal
-// Secure Supabase Session Handling, Multi-Company Isolation & Enterprise Security
+// Paguro Finance V1 - Official Production Authentication Portal
+// Strict Paguro Brand Identity: Official Logo, Palette, Typography & Security
 // ============================================================================
 
 import React, { useState, Suspense } from 'react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Shield, ArrowRight, CheckCircle2, AlertCircle, KeyRound, Building2 } from 'lucide-react';
+import { ArrowRight, AlertCircle, ShieldCheck, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { loginAction } from '@/lib/auth/actions';
 
@@ -44,7 +45,7 @@ function LoginForm() {
         window.location.href = res.redirectTo || returnTo;
       }
     } catch (err: any) {
-      console.error('[Login] Unexpected submission error:', err);
+      console.error('[Login] Submission error:', err);
       setErrorMessage(err?.message || 'Error al procesar el inicio de sesión.');
       setLoading(false);
     }
@@ -60,42 +61,85 @@ function LoginForm() {
         justifyContent: 'center',
         backgroundColor: 'var(--bg-app)',
         padding: '24px 20px',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      {/* Subtle Background Brand Radial Glows */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '-15%',
+          left: '10%',
+          width: '500px',
+          height: '500px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(0, 152, 255, 0.08) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '-15%',
+          right: '10%',
+          width: '500px',
+          height: '500px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(231, 33, 117, 0.06) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }}
+      />
+
       <div
         className="card"
         style={{
           width: '100%',
-          maxWidth: '440px',
-          padding: '40px 32px',
-          border: '1px solid var(--border-card)',
-          boxShadow: '0 24px 48px rgba(0, 0, 0, 0.65)',
+          maxWidth: '430px',
+          padding: '42px 34px',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          boxShadow: '0 24px 50px rgba(0, 0, 0, 0.75)',
+          position: 'relative',
+          zIndex: 10,
         }}
       >
-        {/* Brand Logo & Title */}
+        {/* Official Brand Header */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div
             style={{
-              width: '52px',
-              height: '52px',
-              borderRadius: '14px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ffffff',
-              boxShadow: '0 8px 16px rgba(59, 130, 246, 0.3)',
+              padding: '10px 18px',
+              borderRadius: '16px',
+              backgroundColor: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
               marginBottom: '16px',
             }}
           >
-            <Shield size={28} />
+            <Image
+              src="/brand/paguro-icon.png"
+              alt="Paguro Logo"
+              width={54}
+              height={54}
+              style={{ objectFit: 'contain' }}
+              priority
+            />
           </div>
 
-          <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-white)', letterSpacing: '-0.02em' }}>
-            Paguro Finance
+          <h1
+            style={{
+              fontSize: '24px',
+              fontWeight: 800,
+              fontFamily: 'var(--font-heading)',
+              color: 'var(--text-white)',
+              letterSpacing: '-0.02em',
+            }}
+          >
+            PAGURO <span style={{ color: 'var(--paguro-blue)' }}>FINANCE</span>
           </h1>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Plataforma Integral de Gestión y Control Financiero
+            Financial Intelligence & Tax Operations • V1.0
           </p>
         </div>
 
@@ -131,7 +175,7 @@ function LoginForm() {
               className="form-input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="nombre@empresa.com"
+              placeholder="admin@pagurocorp.com"
             />
           </div>
 
@@ -140,7 +184,7 @@ function LoginForm() {
               <label className="form-label" style={{ marginBottom: 0 }}>Contraseña</label>
               <Link
                 href="/forgot-password"
-                style={{ fontSize: '11px', color: 'var(--accent-blue)', textDecoration: 'none' }}
+                style={{ fontSize: '11px', color: 'var(--paguro-blue)', textDecoration: 'none' }}
               >
                 ¿Olvidó su contraseña?
               </Link>
@@ -160,10 +204,17 @@ function LoginForm() {
           <Button
             type="submit"
             variant="primary"
-            style={{ width: '100%', marginTop: '8px', justifyContent: 'center' }}
+            style={{
+              width: '100%',
+              marginTop: '8px',
+              justifyContent: 'center',
+              backgroundColor: 'var(--paguro-blue)',
+              boxShadow: '0 4px 16px rgba(0, 152, 255, 0.35)',
+              padding: '11px 16px',
+            }}
             disabled={loading}
           >
-            {loading ? 'Iniciando Sesión...' : 'Ingresar al Sistema'}
+            {loading ? 'Accediendo al Sistema...' : 'Ingresar a Paguro Finance'}
           </Button>
         </form>
 
@@ -176,9 +227,14 @@ function LoginForm() {
             textAlign: 'center',
             fontSize: '11px',
             color: 'var(--text-dim)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
           }}
         >
-          <span>Acceso cifrado de grado bancario (TLS 1.3 + JWT Supabase)</span>
+          <ShieldCheck size={14} color="var(--color-success)" />
+          <span>Acceso seguro con aislamiento empresarial y RLS activo</span>
         </div>
       </div>
     </div>
@@ -201,7 +257,7 @@ export default function LoginPage() {
             fontSize: '14px',
           }}
         >
-          Cargando portal de acceso...
+          Cargando portal de acceso Paguro Finance...
         </div>
       }
     >

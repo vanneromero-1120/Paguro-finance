@@ -111,25 +111,37 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
 *(Note: If no Supabase credentials are provided, Paguro Finance automatically operates using the rich in-memory operational seed store).*
 
 ### Database Setup
-To deploy the database schema to your Supabase PostgreSQL database, execute the migration files sequentially in the Supabase SQL Editor:
-1. `database/migrations/00001_initial_schema.sql`
-2. `database/migrations/00002_functions_and_triggers.sql`
-3. `database/migrations/00003_row_level_security.sql`
-4. `database/migrations/00004_seed_demo_data.sql`
+To deploy the database schema to your Supabase PostgreSQL database, execute the migration files sequentially:
+1. `database/migrations/00001_initial_schema.sql` (Tables, constraints, indexes)
+2. `database/migrations/00002_functions_and_triggers.sql` (Recalculations, audit triggers, stock checks)
+3. `database/migrations/00003_row_level_security.sql` (Multi-tenant RLS policies)
+4. `database/migrations/00005_products_cross_company_integrity.sql` (SKU uniqueness & FK integrity)
+5. `database/migrations/00006_sales_invoice_numbering.sql` (Sequential invoice sequence)
+6. `database/migrations/00007_tax_periods_notes_created_by.sql` (Tax period audit metadata)
+7. `database/migrations/00008_documents_and_storage_policies.sql` (Private storage bucket & RLS)
+8. `database/migrations/00009_company_contact_fields.sql` (Company profile contact fields)
+
+*(Note: `00004_seed_demo_data.sql` is for local offline development only and is NOT applied in production).*
 
 ---
 
-## 4. Development & Testing Commands
+## 4. Development, Quality Assurance & Production Verification
 
 ```bash
-# Start Next.js development server
-npm run dev
-
-# Run automated test suites (financial math, payments, inventory, taxes, RBAC)
+# Run automated test suites (14 suites, 196 tests passing)
 npm test
+
+# Type checking
+npx tsc --noEmit
+
+# Linting
+npm run lint
 
 # Build for production
 npm run build
+
+# Verify against live Supabase production gate
+node --env-file=.env.local scripts/verify-full-production.mjs
 ```
 
 ---
@@ -137,11 +149,14 @@ npm run build
 ## 5. Security & Row Level Security (RLS)
 
 - Every financial and operational entity includes a mandatory `company_id`.
-- Access is strictly governed by active user membership in `company_users`.
+- Access is strictly governed by active user membership in `company_users` and evaluated via `has_company_access()`.
 - Cross-company data leaks are prevented at the database kernel level through RLS.
-- Financial audit logs in `audit_logs` are strictly append-only (no update or delete permitted).
+- Financial audit logs in `audit_logs` are strictly append-only and cryptographically protected against tampering.
+- Role management enforces anti-self-escalation and role hierarchy rules.
+- Complete specification available in [Production Readiness Documentation](docs/production-readiness.md).
 
 ---
 
 ## 6. License & Ownership
 Copyright © 2026 Paguro Corp. All rights reserved. Internal operational software.
+

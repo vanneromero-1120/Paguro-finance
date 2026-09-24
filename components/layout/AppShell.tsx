@@ -16,27 +16,26 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     }
   }, []);
 
-  // If on login page, don't show dashboard shell
-  if (pathname === '/login') {
+  // If on login or auth pages, render plain layout
+  if (
+    pathname === '/login' ||
+    pathname === '/forgot-password' ||
+    pathname === '/reset-password' ||
+    pathname === '/unauthorized'
+  ) {
     return <>{children}</>;
   }
 
-  // Determine title from pathname
+  // Determine title from V1 pathname
   const getPageTitle = () => {
-    if (!pathname || pathname === '/' || pathname === '/dashboard') return 'Panel Financiero General';
-    if (pathname.startsWith('/sales/invoices')) return 'Facturas de Venta & CxC';
-    if (pathname.startsWith('/sales/customers')) return 'Directorio de Clientes';
-    if (pathname.startsWith('/sales/payments')) return 'Gestión de Cobros & Pagos';
-    if (pathname.startsWith('/purchases/expenses')) return 'Gastos Operativos & Compras';
-    if (pathname.startsWith('/purchases/suppliers')) return 'Directorio de Proveedores';
-    if (pathname.startsWith('/inventory/products')) return 'Catálogo de Productos';
-    if (pathname.startsWith('/inventory/movements')) return 'Ledger de Movimientos de Inventario';
-    if (pathname.startsWith('/taxes/iva')) return 'Gestión de IVA por Periodo Fiscal';
-    if (pathname.startsWith('/reports')) return 'Informes & Reportes Financieros';
-    if (pathname.startsWith('/documents')) return 'Repositorio Central de Documentos';
-    if (pathname.startsWith('/settings/company')) return 'Configuración de Empresas';
-    if (pathname.startsWith('/settings/users')) return 'Gestión de Usuarios & Roles';
-    if (pathname.startsWith('/settings/audit')) return 'Bitácora de Auditoría Inmutable';
+    if (!pathname || pathname === '/' || pathname === '/dashboard') return 'Dashboard Financiero V1';
+    if (pathname.startsWith('/movements')) return 'Movimientos Financieros Normalizados';
+    if (pathname.startsWith('/documents')) return 'Ingesta Contable & Extracción IA';
+    if (pathname.startsWith('/taxes')) return 'Operaciones Tributarias & IVA';
+    if (pathname.startsWith('/obligations')) return 'Obligaciones & Calendario Fiscal';
+    if (pathname.startsWith('/ai-advisor')) return 'Asesor Financiero & Tributario IA';
+    if (pathname.startsWith('/integrations')) return 'Integraciones & Conectores';
+    if (pathname.startsWith('/settings')) return 'Configuración & Perfil Tributario';
     return 'Paguro Finance';
   };
 

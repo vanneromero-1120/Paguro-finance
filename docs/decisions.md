@@ -224,6 +224,31 @@ This document tracks significant architectural and technical decisions made duri
 - **Alternatives Considered**: Having the dashboard make multiple separate REST calls for each widget (rejected due to network latency and waterfall overhead); computing KPIs in browser state (rejected to preserve single source of truth).
 - **Impact**: High-performance dashboard loading, verified multi-company isolation, and decoupling of `app/dashboard/page.tsx` and `components/layout/CompanySelector.tsx` from `mock-store.ts`.
 
-
-
-
+### ADR-022: Production Settings, Strict RBAC Anti-Self-Escalation, and Global Mock Deprecation
+- **Status**: Accepted
+- **Context**: The settings modules (`app/settings/company/page.tsx`, `app/settings/users/page.tsx`, `app/settings/audit/page.tsx`) previously relied on local component state and static arrays from `mock-store.ts`. Additionally, the login screen contained quick demo preset switcher buttons with hardcoded test credentials. For production readiness, settings must operate exclusively against live Supabase data, prevent privilege self-escalation, enforce role hierarchies, guarantee audit trail immutability, and purge all mock dependencies from the runtime codebase.
+- **Decision**:
+  1. **Company Profile Management (`lib/actions/company.ts`)**:
+     - Applied database migration `00009_company_contact_fields.sql` adding `email`, `phone`, `address`, and `city` to the `companies` table.
+     - Viewing and updating company parameters is strictly constrained to the authenticated user's active company membership (`session.activeCompanyId`). Arbitrary `company_id` overrides are prohibited.
+     - Updates are permitted solely to `SUPER_ADMIN` and `ADMIN` roles and record a state diff in `audit_logs` (`action = 'UPDATE'`, `entity_type = 'company'`).
+  2. **Users & Access Control with Anti-Self-Escalation (`lib/actions/users.ts`)**:
+     - Users and memberships are queried from `company_users` joined with `profiles`.
+     - **Anti-Self-Escalation**: Any attempt by a caller to alter their own role (`targetUserId === session.id`) is rejected with a security error.
+     - **Role Hierarchy**: Only `SUPER_ADMIN` can assign or revoke the `SUPER_ADMIN` role. `ADMIN` callers cannot grant `SUPER_ADMIN` or demote an active `SUPER_ADMIN`.
+     - **Minimum Super Admin Invariant**: A company cannot demote or suspend its last remaining active `SUPER_ADMIN`.
+     - All membership changes, role promotions/demotions, and status suspensions/reactivations are appended to `audit_logs`.
+  3. **Immutable Audit Trail Viewer (`lib/actions/audit.ts`)**:
+     - Replaced `INITIAL_AUDIT_LOGS` with live queries against `audit_logs` scoped to `session.activeCompanyId`.
+     - Enriched with actor names and emails from `profiles`.
+     - Provides multi-dimensional filters: free-text search, action type, entity type, and date range (`dateFrom`, `dateTo`).
+     - Includes a structured JSON diff viewer displaying `before_json` and `after_json` side by side.
+     - Audit logs are read-only; no UPDATE or DELETE functions or RLS policies exist for application users.
+  4. **Purge of `mock-store.ts` and Demo Credentials**:
+     - Deleted `lib/supabase/mock-store.ts` completely from the repository.
+     - Removed all demo preset buttons and hardcoded credentials from `app/login/page.tsx`.
+     - Removed offline demo emulation from `lib/auth/server-auth.ts`.
+     - Decoupled `tests/security-isolation.test.ts` to use isolated test fixtures under `tests/fixtures/security-test-fixtures.ts`.
+- **Reason**: Guarantees zero security backdoors, prevents unauthorized administrative privilege escalation, secures corporate profile configuration, and eliminates all simulated data from the production runtime.
+- **Alternatives Considered**: Retaining mock fallback when database errors occur (rejected as silent mock fallback in production leads to catastrophic financial data desynchronization); permitting admins to modify their own role (rejected to comply with SOC2/ISO27001 anti-self-escalation standards).
+- **Impact**: Full production readiness achieved across Settings, Users, and Audit, 100% mock-free runtime, passing all 14 test suites and live Supabase verification gates.

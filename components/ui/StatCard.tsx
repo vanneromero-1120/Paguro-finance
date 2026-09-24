@@ -10,7 +10,7 @@ interface StatCardProps {
     value: string;
     isPositive: boolean;
   } | 'up' | 'down' | 'neutral';
-  highlightColor?: 'primary' | 'success' | 'warning' | 'danger' | 'purple';
+  highlightColor?: 'primary' | 'success' | 'warning' | 'danger' | 'purple' | 'pink';
   onClick?: () => void;
 }
 
@@ -27,7 +27,8 @@ export const StatCard: React.FC<StatCardProps> = ({
   const displayTitle = title || label || '';
 
   const colorMap = {
-    primary: 'var(--color-primary)',
+    primary: 'var(--paguro-blue)',
+    pink: 'var(--paguro-pink)',
     success: 'var(--color-success)',
     warning: 'var(--color-warning)',
     danger: 'var(--color-danger)',
@@ -58,7 +59,7 @@ export const StatCard: React.FC<StatCardProps> = ({
         }}
       />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           {displayTitle}
         </span>
         {icon && (
@@ -79,11 +80,11 @@ export const StatCard: React.FC<StatCardProps> = ({
         )}
       </div>
 
-      <div className="num-mono" style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-white)', marginBottom: '6px' }}>
+      <div className="num-mono" style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-white)', marginBottom: '6px' }}>
         {value}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
         {subtitle && <span style={{ color: 'var(--text-dim)' }}>{subtitle}</span>}
         {isObjectTrend && (
           <span

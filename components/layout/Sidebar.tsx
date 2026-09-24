@@ -2,80 +2,39 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  Receipt,
-  Users,
-  CreditCard,
-  ShoppingBag,
-  Truck,
-  Package,
-  ArrowUpDown,
-  Percent,
-  BarChart3,
+  ArrowLeftRight,
   FolderOpen,
+  Percent,
+  CalendarCheck,
+  BotMessageSquare,
+  Network,
   Settings,
-  ShieldCheck,
-  UserCheck,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
 
-  const navGroups = [
-    {
-      title: 'OPERACIÓN',
-      items: [
-        { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} /> },
-      ],
-    },
-    {
-      title: 'VENTAS & CXC',
-      items: [
-        { label: 'Facturas de Venta', href: '/sales/invoices', icon: <Receipt size={18} /> },
-        { label: 'Clientes', href: '/sales/customers', icon: <Users size={18} /> },
-        { label: 'Cobros & Pagos', href: '/sales/payments', icon: <CreditCard size={18} /> },
-      ],
-    },
-    {
-      title: 'COMPRAS & CXP',
-      items: [
-        { label: 'Gastos & Compras', href: '/purchases/expenses', icon: <ShoppingBag size={18} /> },
-        { label: 'Proveedores', href: '/purchases/suppliers', icon: <Truck size={18} /> },
-      ],
-    },
-    {
-      title: 'INVENTARIO',
-      items: [
-        { label: 'Productos', href: '/inventory/products', icon: <Package size={18} /> },
-        { label: 'Movimientos', href: '/inventory/movements', icon: <ArrowUpDown size={18} /> },
-      ],
-    },
-    {
-      title: 'IMPUESTOS & REPORTES',
-      items: [
-        { label: 'IVA por Periodo', href: '/taxes/iva', icon: <Percent size={18} /> },
-        { label: 'Reportes Financieros', href: '/reports', icon: <BarChart3 size={18} /> },
-        { label: 'Documentos', href: '/documents', icon: <FolderOpen size={18} /> },
-      ],
-    },
-    {
-      title: 'CONFIGURACIÓN',
-      items: [
-        { label: 'Empresas', href: '/settings/company', icon: <Settings size={18} /> },
-        { label: 'Usuarios y Roles', href: '/settings/users', icon: <UserCheck size={18} /> },
-        { label: 'Auditoría', href: '/settings/audit', icon: <ShieldCheck size={18} /> },
-      ],
-    },
+  const v1NavItems = [
+    { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={19} /> },
+    { label: 'Movimientos', href: '/movements', icon: <ArrowLeftRight size={19} /> },
+    { label: 'Documentos', href: '/documents', icon: <FolderOpen size={19} /> },
+    { label: 'Impuestos', href: '/taxes', icon: <Percent size={19} /> },
+    { label: 'Obligaciones', href: '/obligations', icon: <CalendarCheck size={19} /> },
+    { label: 'Asesor IA', href: '/ai-advisor', icon: <BotMessageSquare size={19} />, badge: 'AI' },
+    { label: 'Integraciones', href: '/integrations', icon: <Network size={19} /> },
+    { label: 'Configuración', href: '/settings', icon: <Settings size={19} /> },
   ];
 
   return (
     <aside className="sidebar">
-      {/* Brand Header */}
+      {/* Official Paguro Brand Header */}
       <div
         style={{
-          padding: '20px',
+          padding: '20px 18px',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
@@ -84,76 +43,121 @@ export const Sidebar: React.FC = () => {
       >
         <div
           style={{
-            width: '36px',
-            height: '36px',
+            width: '38px',
+            height: '38px',
             borderRadius: '10px',
-            background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#fff',
-            fontWeight: 800,
-            fontSize: '18px',
-            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
+            flexShrink: 0,
+            overflow: 'hidden',
           }}
         >
-          P
+          <Image
+            src="/brand/paguro-icon.png"
+            alt="Paguro Isotype"
+            width={28}
+            height={28}
+            style={{ objectFit: 'contain' }}
+            priority
+          />
         </div>
         <div>
-          <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-white)', letterSpacing: '-0.01em' }}>
-            PAGURO FINANCE
+          <div
+            style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: '15px',
+              fontWeight: 700,
+              color: 'var(--text-white)',
+              letterSpacing: '-0.02em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span>PAGURO</span>
+            <span style={{ color: 'var(--paguro-blue)' }}>FINANCE</span>
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Operating Core v1.0
+          <div
+            style={{
+              fontSize: '10px',
+              fontWeight: 600,
+              color: 'var(--text-dim)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Version 1.0 • Intelligence
           </div>
         </div>
       </div>
 
-      {/* Navigation List */}
+      {/* Navigation Links */}
       <div style={{ padding: '16px 12px', flex: 1, overflowY: 'auto' }}>
-        {navGroups.map((group) => (
-          <div key={group.title} style={{ marginBottom: '20px' }}>
-            <div
+        <div
+          style={{
+            fontSize: '10px',
+            fontWeight: 700,
+            color: 'var(--text-dim)',
+            letterSpacing: '0.08em',
+            padding: '0 12px 8px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Módulos Operativos V1
+        </div>
+
+        {v1NavItems.map((item) => {
+          const isActive =
+            pathname === item.href ||
+            (item.href !== '/dashboard' && pathname?.startsWith(item.href));
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
               style={{
-                fontSize: '10px',
-                fontWeight: 700,
-                color: 'var(--text-dim)',
-                letterSpacing: '0.08em',
-                padding: '0 12px 6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '9px 12px',
+                borderRadius: '8px',
+                marginBottom: '4px',
+                fontSize: '13px',
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? 'var(--text-white)' : 'var(--text-muted)',
+                backgroundColor: isActive ? 'var(--paguro-blue-light)' : 'transparent',
+                border: isActive
+                  ? '1px solid rgba(0, 152, 255, 0.35)'
+                  : '1px solid transparent',
+                transition: 'var(--transition-smooth)',
               }}
             >
-              {group.title}
-            </div>
-            {group.items.map((item) => {
-              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname?.startsWith(item.href));
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span
                   style={{
+                    color: isActive ? 'var(--paguro-blue)' : 'var(--text-dim)',
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    marginBottom: '2px',
-                    fontSize: '13px',
-                    fontWeight: isActive ? 600 : 400,
-                    color: isActive ? 'var(--text-white)' : 'var(--text-muted)',
-                    backgroundColor: isActive ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
-                    border: isActive ? '1px solid rgba(59, 130, 246, 0.25)' : '1px solid transparent',
-                    transition: 'var(--transition-smooth)',
                   }}
                 >
-                  <span style={{ color: isActive ? 'var(--color-primary)' : 'inherit', display: 'flex' }}>
-                    {item.icon}
-                  </span>
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+                  {item.icon}
+                </span>
+                <span>{item.label}</span>
+              </div>
+
+              {item.badge && (
+                <span
+                  className="badge badge-brand-pink"
+                  style={{ fontSize: '9px', padding: '1px 6px' }}
+                >
+                  {item.badge}
+                </span>
+              )}
+            </Link>
+          );
+        })}
       </div>
 
       {/* System Status Footer */}
@@ -166,14 +170,23 @@ export const Sidebar: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          backgroundColor: 'rgba(0, 0, 0, 0.2)',
         }}
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--color-success)' }} />
+          <span
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--color-success)',
+              boxShadow: '0 0 8px rgba(16, 185, 129, 0.6)',
+            }}
+          />
           RLS Activo
         </span>
-        <span className="badge badge-neutral" style={{ fontSize: '10px', padding: '2px 6px' }}>
-          COP
+        <span className="badge badge-brand-blue" style={{ fontSize: '10px', padding: '2px 6px' }}>
+          COL • COP
         </span>
       </div>
     </aside>

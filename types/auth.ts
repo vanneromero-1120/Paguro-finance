@@ -6,6 +6,7 @@ import { Company, Profile, UserRole } from './database';
 
 export interface AuthUser {
   id: string;
+  userId?: string;
   email: string;
   profile: Profile;
   companies: {

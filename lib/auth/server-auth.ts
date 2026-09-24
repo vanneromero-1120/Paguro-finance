@@ -59,6 +59,7 @@ export async function getServerAuthSession(): Promise<AuthUser | null> {
     if (profile && activeCompanyMembership) {
       return {
         id: user.id,
+        userId: user.id,
         email: user.email || profile.email,
         profile: profile,
         companies: companiesList,

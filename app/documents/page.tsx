@@ -1,782 +1,610 @@
-// ============================================================================
-// Paguro Finance - Central Documents Repository
-// Real Supabase data, Private Storage, Signed URLs, Role-aware, Zero mock-store
-// ============================================================================
-
 'use client';
+
+// ============================================================================
+// Paguro Finance V1 - Documents Intelligence & Google Drive Pipeline Page
+// Pipeline Statuses, AI Extraction, Human Review Queue, Link/Unlink to Movements
+// ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+  FolderOpen,
   FileText,
   Upload,
-  Download,
   Search,
-  ShieldCheck,
-  Archive,
-  RefreshCw,
-  AlertCircle,
-  FileSpreadsheet,
-  Image as ImageIcon,
-  Tag,
-  Paperclip,
   CheckCircle2,
+  AlertTriangle,
+  Sparkles,
+  Link as LinkIcon,
+  Unlink,
+  Eye,
+  RefreshCw,
+  Clock,
+  Layers,
+  FileCheck2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import {
-  DocumentAttachment,
-  DocumentEntityType,
-  AttachableEntity,
-} from '@/types/database';
-import { formatDateTime } from '@/lib/utils/formatters';
+  getAccountingDocumentsAction,
+  extractDocumentDataAction,
+  reviewAndCorrectDocumentAction,
+  linkDocumentToMovementAction,
+  unlinkDocumentFromMovementAction,
+} from '@/lib/actions/documents-v1';
+import { getFinancialMovementsAction } from '@/lib/actions/movements';
 import {
-  getDocumentsAction,
-  uploadDocumentAction,
-  getDocumentDownloadUrlAction,
-  archiveDocumentAction,
-  getAttachableEntitiesAction,
-} from '@/lib/actions/documents';
-import { createClient } from '@/lib/supabase/client';
+  AccountingDocument,
+  DocumentPipelineStatus,
+  AccountingDocumentType,
+  FinancialMovement,
+} from '@/types/v1-financial';
 
 export default function DocumentsPage() {
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const canUpload = userRole ? ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS'].includes(userRole) : false;
-
-  useEffect(() => {
-    const supabase = createClient();
-    if (!supabase) return;
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return;
-      const { data: membership } = await supabase
-        .from('company_users')
-        .select('role')
-        .eq('user_id', user.id)
-        .in('status', ['active', 'ACTIVE'])
-        .maybeSingle();
-      if (membership) {
-        setUserRole(membership.role);
-      }
-    });
-  }, []);
-
-  const [documents, setDocuments] = useState<DocumentAttachment[]>([]);
+  const [activeTab, setActiveTab] = useState<'ALL' | 'REVIEW_QUEUE' | 'MATCHED'>('ALL');
+  const [documents, setDocuments] = useState<AccountingDocument[]>([]);
+  const [movements, setMovements] = useState<FinancialMovement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
-  // Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [entityTypeFilter, setEntityTypeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('active');
+  // Review Modal State
+  const [selectedDoc, setSelectedDoc] = useState<AccountingDocument | null>(null);
+  const [editingDoc, setEditingDoc] = useState<any>(null);
+  const [savingReview, setSavingReview] = useState(false);
+  const [extracting, setExtracting] = useState(false);
 
-  // Upload Modal State
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [entityType, setEntityType] = useState<DocumentEntityType>('sales_invoice');
-  const [entityId, setEntityId] = useState('');
-  const [notes, setNotes] = useState('');
-  const [attachableEntities, setAttachableEntities] = useState<AttachableEntity[]>([]);
-  const [loadingEntities, setLoadingEntities] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  // Link Movement Modal
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [targetDocId, setTargetDocId] = useState<string | null>(null);
+  const [selectedMovementId, setSelectedMovementId] = useState<string>('');
 
-  // Archive Modal State
-  const [docToArchive, setDocToArchive] = useState<DocumentAttachment | null>(null);
-  const [archiving, setArchiving] = useState(false);
-
-  // Download state
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-
-  // Fetch documents
   const loadDocuments = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    try {
-      const res = await getDocumentsAction({
-        entity_type: entityTypeFilter,
-        status: statusFilter,
-        search: searchTerm,
-      });
-      if (res.success && res.data) {
-        setDocuments(res.data);
-      } else {
-        setError(res.error || 'Error al cargar documentos.');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Error inesperado al cargar documentos.');
-    } finally {
-      setLoading(false);
+    const filterStatus =
+      activeTab === 'REVIEW_QUEUE'
+        ? 'REQUIRES_REVIEW'
+        : activeTab === 'MATCHED'
+        ? 'MATCHED'
+        : statusFilter !== 'ALL'
+        ? (statusFilter as DocumentPipelineStatus)
+        : undefined;
+
+    const res = await getAccountingDocumentsAction({
+      pipeline_status: filterStatus,
+      search: search || undefined,
+    });
+
+    if (res.success && res.data) {
+      setDocuments(res.data);
     }
-  }, [entityTypeFilter, statusFilter, searchTerm]);
+    setLoading(false);
+  }, [activeTab, statusFilter, search]);
 
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
 
-  // Load attachable entities when modal opens or entityType changes
-  useEffect(() => {
-    if (!isUploadOpen) return;
-    let isCancelled = false;
-    setLoadingEntities(true);
-    setEntityId('');
-
-    getAttachableEntitiesAction(entityType)
-      .then((res) => {
-        if (!isCancelled && res.success && res.data) {
-          setAttachableEntities(res.data);
-          if (res.data.length > 0) {
-            setEntityId(res.data[0].id);
-          }
-        }
-      })
-      .finally(() => {
-        if (!isCancelled) setLoadingEntities(false);
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [isUploadOpen, entityType]);
-
-  // Handle file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-      if (!validTypes.includes(file.type)) {
-        setUploadError(`Tipo de archivo (${file.type}) no permitido. Utilice PDF, JPG o PNG.`);
-        setSelectedFile(null);
-        return;
-      }
-      if (file.size > 15 * 1024 * 1024) {
-        setUploadError(`El archivo supera los 15 MB permitidos (${(file.size / 1024 / 1024).toFixed(1)} MB).`);
-        setSelectedFile(null);
-        return;
-      }
-      setUploadError(null);
-      setSelectedFile(file);
-    }
-  };
-
-  // Submit upload
-  const handleUploadSubmit = async (e: React.FormEvent) => {
+  const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFile) {
-      setUploadError('Debe seleccionar un archivo para cargar.');
-      return;
+    loadDocuments();
+  };
+
+  const handleOpenReview = (doc: AccountingDocument) => {
+    setSelectedDoc(doc);
+    setEditingDoc({
+      document_type: doc.document_type || 'SUPPLIER_INVOICE',
+      invoice_number: doc.invoice_number || '',
+      document_date: doc.document_date || new Date().toISOString().split('T')[0],
+      counterparty_name: doc.counterparty_name || '',
+      counterparty_tax_id: doc.counterparty_tax_id || '',
+      subtotal: doc.subtotal || 0,
+      tax_iva: doc.tax_iva || 0,
+      tax_withholding: doc.tax_withholding || 0,
+      total_amount: doc.total_amount || 0,
+      review_notes: doc.review_notes || '',
+    });
+  };
+
+  const handleExtractWithAi = async () => {
+    if (!selectedDoc) return;
+    setExtracting(true);
+    const res = await extractDocumentDataAction(selectedDoc.id);
+    if (res.success && res.data) {
+      setSelectedDoc(res.data);
+      setEditingDoc({
+        document_type: res.data.document_type,
+        invoice_number: res.data.invoice_number || '',
+        document_date: res.data.document_date || '',
+        counterparty_name: res.data.counterparty_name || '',
+        counterparty_tax_id: res.data.counterparty_tax_id || '',
+        subtotal: res.data.subtotal || 0,
+        tax_iva: res.data.tax_iva || 0,
+        tax_withholding: res.data.tax_withholding || 0,
+        total_amount: res.data.total_amount || 0,
+        review_notes: res.data.review_notes || '',
+      });
+      loadDocuments();
     }
-    if (!entityId) {
-      setUploadError('Debe asociar el documento a un registro.');
-      return;
+    setExtracting(false);
+  };
+
+  const handleSaveCorrection = async () => {
+    if (!selectedDoc || !editingDoc) return;
+    setSavingReview(true);
+    const res = await reviewAndCorrectDocumentAction(selectedDoc.id, {
+      ...editingDoc,
+      pipeline_status: 'ACCEPTED',
+    });
+    if (res.success) {
+      setSelectedDoc(null);
+      loadDocuments();
+    } else {
+      alert(res.error || 'Error al guardar revisión.');
     }
+    setSavingReview(false);
+  };
 
-    setUploading(true);
-    setUploadError(null);
-    setUploadSuccess(null);
-
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-    formData.append('entity_type', entityType);
-    formData.append('entity_id', entityId);
-    formData.append('notes', notes);
-
-    try {
-      const res = await uploadDocumentAction(formData);
-      if (res.success) {
-        setUploadSuccess('Documento resguardado exitosamente.');
-        setTimeout(() => {
-          setIsUploadOpen(false);
-          setSelectedFile(null);
-          setNotes('');
-          setUploadSuccess(null);
-          loadDocuments();
-        }, 1200);
-      } else {
-        setUploadError(res.error || 'Error al cargar el documento.');
-      }
-    } catch (err: any) {
-      setUploadError(err.message || 'Error inesperado durante la carga.');
-    } finally {
-      setUploading(false);
+  const handleOpenLinkModal = async (docId: string) => {
+    setTargetDocId(docId);
+    setIsLinkModalOpen(true);
+    const movRes = await getFinancialMovementsAction({ limit: 30 });
+    if (movRes.success && movRes.data) {
+      setMovements(movRes.data);
     }
   };
 
-  // Download / View file via signed URL
-  const handleDownload = async (doc: DocumentAttachment) => {
-    setDownloadingId(doc.id);
-    try {
-      const res = await getDocumentDownloadUrlAction(doc.id);
-      if (res.success && res.data?.signed_url) {
-        window.open(res.data.signed_url, '_blank', 'noopener,noreferrer');
-      } else {
-        alert(res.error || 'Error al obtener enlace seguro.');
-      }
-    } catch (err: any) {
-      alert(err.message || 'Error de conexión.');
-    } finally {
-      setDownloadingId(null);
-    }
+  const handleConfirmLink = async () => {
+    if (!targetDocId || !selectedMovementId) return;
+    await linkDocumentToMovementAction(targetDocId, selectedMovementId);
+    setIsLinkModalOpen(false);
+    setTargetDocId(null);
+    setSelectedMovementId('');
+    loadDocuments();
   };
 
-  // Archive document
-  const handleArchiveConfirm = async () => {
-    if (!docToArchive) return;
-    setArchiving(true);
-    try {
-      const res = await archiveDocumentAction(docToArchive.id);
-      if (res.success) {
-        setDocToArchive(null);
-        loadDocuments();
-      } else {
-        alert(res.error || 'Error al archivar documento.');
-      }
-    } catch (err: any) {
-      alert(err.message || 'Error al archivar documento.');
-    } finally {
-      setArchiving(false);
-    }
-  };
-
-  const getEntityBadge = (type: string) => {
-    switch (type) {
-      case 'sales_invoice':
-        return <Badge variant="info">Factura Venta</Badge>;
-      case 'purchase_document':
-      case 'expense':
-        return <Badge variant="warning">Factura Gasto</Badge>;
-      case 'payment':
-        return <Badge variant="success">Soporte Pago</Badge>;
-      case 'customer':
-        return <Badge variant="neutral">Cliente</Badge>;
-      case 'supplier':
-        return <Badge variant="neutral">Proveedor</Badge>;
-      case 'tax_period':
-        return <Badge variant="info">Cert. Tributario</Badge>;
-      default:
-        return <Badge variant="neutral">{type}</Badge>;
-    }
-  };
-
-  const getFileIcon = (mime: string) => {
-    if (mime.includes('pdf')) return <FileText size={20} color="#ef4444" />;
-    if (mime.includes('image')) return <ImageIcon size={20} color="#3b82f6" />;
-    return <FileSpreadsheet size={20} color="#10b981" />;
+  const handleUnlink = async (docId: string) => {
+    if (!confirm('¿Desea desvincular este documento del movimiento financiero?')) return;
+    await unlinkDocumentFromMovementAction(docId);
+    loadDocuments();
   };
 
   return (
-    <div style={{ paddingBottom: '40px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+    <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
+      {/* Top Header */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '16px',
+          marginBottom: '20px',
+        }}
+      >
         <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-white)' }}>
-            Repositorio Central de Documentos
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '4px' }}>
-            Archivos protegidos en Supabase Storage (PDFs de facturas, soportes de pago y certificados tributarios).
+          <h1 style={{ fontSize: '22px', fontWeight: 700 }}>Ingesta Documental & Extracción IA</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '2px' }}>
+            Pipeline contable: Google Drive → Clasificación → Extracción IA → Validación Humana → Movimiento
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <Button variant="outline" icon={<RefreshCw size={15} />} onClick={loadDocuments} disabled={loading}>
-            Actualizar
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button
+            variant="secondary"
+            onClick={loadDocuments}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <span>Refrescar</span>
           </Button>
-
-          {canUpload && (
-            <Button
-              variant="primary"
-              icon={<Upload size={16} />}
-              onClick={() => {
-                setUploadError(null);
-                setUploadSuccess(null);
-                setSelectedFile(null);
-                setNotes('');
-                setIsUploadOpen(true);
-              }}
-            >
-              Cargar Soporte
-            </Button>
-          )}
         </div>
       </div>
 
-      {/* Security Storage Banner */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '12px 16px',
-          backgroundColor: 'rgba(16, 185, 129, 0.08)',
-          border: '1px solid rgba(16, 185, 129, 0.2)',
-          borderRadius: 'var(--radius-md)',
-          marginBottom: '20px',
-          fontSize: '13px',
-          color: '#34d399',
-        }}
-      >
-        <ShieldCheck size={20} style={{ flexShrink: 0 }} />
-        <span>
-          <strong>Almacenamiento Privado y Cifrado:</strong> Los archivos residen en el bucket privado <code>financial-documents</code> bajo políticas estrictas de RLS por empresa. El acceso se realiza exclusivamente mediante URLs firmadas temporales con expiración de 60 segundos.
-        </span>
+      {/* Tabs Bar */}
+      <div className="tabs-nav">
+        <button
+          className={`tab-btn ${activeTab === 'ALL' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ALL')}
+        >
+          Todos los Documentos
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'REVIEW_QUEUE' ? 'active' : ''}`}
+          onClick={() => setActiveTab('REVIEW_QUEUE')}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          <span>Cola de Revisión Humana</span>
+          <span className="badge badge-brand-pink" style={{ fontSize: '9px' }}>
+            Requiere Atención
+          </span>
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'MATCHED' ? 'active' : ''}`}
+          onClick={() => setActiveTab('MATCHED')}
+        >
+          Vinculados a Movimientos
+        </button>
       </div>
 
-      {/* Search & Filters */}
+      {/* Filter / Search Bar */}
       <div
+        className="card"
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          padding: '14px 18px',
           marginBottom: '20px',
-          gap: '12px',
+          display: 'flex',
           flexWrap: 'wrap',
+          gap: '12px',
+          alignItems: 'center',
         }}
       >
-        <div style={{ position: 'relative', width: '340px' }}>
-          <Search
-            size={16}
-            color="var(--text-dim)"
-            style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
-          />
+        <form onSubmit={handleSearchSubmit} style={{ flex: '1 1 240px', display: 'flex', gap: '8px' }}>
           <input
             type="text"
-            placeholder="Buscar por nombre o nota..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '9px 12px 9px 36px',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--radius-md)',
-              color: 'var(--text-white)',
-              fontSize: '13px',
-            }}
+            className="form-input"
+            placeholder="Buscar por nombre de archivo, NIT o emisor..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
           />
-        </div>
+          <Button variant="secondary" type="submit">
+            <Search size={16} />
+          </Button>
+        </form>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ width: '200px' }}>
           <select
-            value={entityTypeFilter}
-            onChange={(e) => setEntityTypeFilter(e.target.value)}
-            style={{
-              padding: '9px 12px',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--radius-md)',
-              color: 'var(--text-white)',
-              fontSize: '13px',
-            }}
-          >
-            <option value="all">Todas las Entidades</option>
-            <option value="sales_invoice">Facturas de Venta</option>
-            <option value="purchase_document">Facturas de Gasto</option>
-            <option value="payment">Soportes de Pago</option>
-            <option value="customer">Clientes</option>
-            <option value="supplier">Proveedores</option>
-            <option value="tax_period">Certificados IVA</option>
-          </select>
-
-          <select
+            className="form-select"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            style={{
-              padding: '9px 12px',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--radius-md)',
-              color: 'var(--text-white)',
-              fontSize: '13px',
-            }}
           >
-            <option value="active">Activos</option>
-            <option value="archived">Archivados</option>
-            <option value="all">Todos los Estados</option>
+            <option value="ALL">Cualquier Estado Pipeline</option>
+            <option value="DISCOVERED">Descubierto (Drive)</option>
+            <option value="EXTRACTED">Extraído por IA</option>
+            <option value="REQUIRES_REVIEW">Requiere Revisión</option>
+            <option value="MATCHED">Vinculado</option>
+            <option value="ACCEPTED">Aceptado</option>
           </select>
         </div>
       </div>
 
-      {/* Error Alert */}
-      {error && (
-        <div
-          style={{
-            padding: '12px 16px',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: 'var(--radius-md)',
-            color: '#f87171',
-            fontSize: '13px',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          <AlertCircle size={18} />
-          <span>{error}</span>
-        </div>
-      )}
-
       {/* Documents Table */}
-      <div
-        style={{
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border-color)',
-          borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
-        }}
-      >
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-              <th style={{ padding: '14px 16px', fontWeight: 600, color: 'var(--text-muted)' }}>Documento</th>
-              <th style={{ padding: '14px 16px', fontWeight: 600, color: 'var(--text-muted)' }}>Asociado a</th>
-              <th style={{ padding: '14px 16px', fontWeight: 600, color: 'var(--text-muted)' }}>Tamaño</th>
-              <th style={{ padding: '14px 16px', fontWeight: 600, color: 'var(--text-muted)' }}>Fecha de Carga</th>
-              <th style={{ padding: '14px 16px', fontWeight: 600, color: 'var(--text-muted)' }}>Cargado por</th>
-              <th style={{ padding: '14px 16px', fontWeight: 600, color: 'var(--text-muted)', textAlign: 'right' }}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="table-container" style={{ border: 'none' }}>
+          <table className="data-table">
+            <thead>
               <tr>
-                <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: '8px' }} />
-                  <p>Cargando documentos de almacenamiento privado...</p>
-                </td>
+                <th>Archivo / Soporte</th>
+                <th>Tipo Documental</th>
+                <th>Fecha</th>
+                <th>Emisor / Proveedor</th>
+                <th>Confianza IA</th>
+                <th>Estado Pipeline</th>
+                <th style={{ textAlign: 'right' }}>Total (COP)</th>
+                <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
-            ) : documents.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <Paperclip size={36} color="var(--text-dim)" style={{ marginBottom: '12px' }} />
-                  <p style={{ fontWeight: 600, color: 'var(--text-white)', fontSize: '15px' }}>
-                    No se encontraron documentos
-                  </p>
-                  <p style={{ fontSize: '13px', marginTop: '4px' }}>
-                    {canUpload
-                      ? 'Haga clic en "Cargar Soporte" para adjuntar archivos seguros a sus transacciones.'
-                      : 'No hay documentos disponibles para los filtros seleccionados.'}
-                  </p>
-                </td>
-              </tr>
-            ) : (
-              documents.map((doc) => (
-                <tr
-                  key={doc.id}
-                  style={{
-                    borderBottom: '1px solid var(--border-color)',
-                    transition: 'background 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                >
-                  {/* Name & Note */}
-                  <td style={{ padding: '14px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      {getFileIcon(doc.mime_type)}
-                      <div>
-                        <div style={{ fontWeight: 600, color: 'var(--text-white)' }}>
-                          {doc.file_name}
-                        </div>
-                        {doc.notes && (
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                            {doc.notes}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Associated Entity */}
-                  <td style={{ padding: '14px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {getEntityBadge(doc.entity_type)}
-                    </div>
-                  </td>
-
-                  {/* File Size */}
-                  <td style={{ padding: '14px 16px', color: 'var(--text-muted)' }}>
-                    {doc.file_size_bytes < 1024 * 1024
-                      ? `${(doc.file_size_bytes / 1024).toFixed(1)} KB`
-                      : `${(doc.file_size_bytes / (1024 * 1024)).toFixed(2)} MB`}
-                  </td>
-
-                  {/* Date */}
-                  <td style={{ padding: '14px 16px', color: 'var(--text-muted)' }}>
-                    {formatDateTime(doc.uploaded_at)}
-                  </td>
-
-                  {/* Uploader */}
-                  <td style={{ padding: '14px 16px', color: 'var(--text-muted)' }}>
-                    {doc.uploader_name || 'Sistema'}
-                  </td>
-
-                  {/* Actions */}
-                  <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        icon={<Download size={14} />}
-                        onClick={() => handleDownload(doc)}
-                        disabled={downloadingId === doc.id}
-                      >
-                        {downloadingId === doc.id ? 'Descargando...' : 'Ver / Descargar'}
-                      </Button>
-
-                      {canUpload && doc.status === 'active' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={<Archive size={14} />}
-                          onClick={() => setDocToArchive(doc)}
-                          title="Archivar soporte"
-                        />
-                      )}
-                    </div>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                    Cargando documentos contables...
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : documents.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-dim)' }}>
+                    No se encontraron documentos contables con el filtro aplicado.
+                  </td>
+                </tr>
+              ) : (
+                documents.map((doc) => (
+                  <tr key={doc.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <FileText size={16} color="var(--paguro-blue)" />
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-white)' }}>{doc.file_name}</div>
+                          {doc.invoice_number && (
+                            <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>No: {doc.invoice_number}</div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="badge badge-neutral" style={{ fontSize: '10px' }}>
+                        {doc.document_type || 'SOPORTE'}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                      {doc.document_date || '—'}
+                    </td>
+                    <td style={{ fontSize: '12px', color: 'var(--text-white)' }}>
+                      {doc.counterparty_name || '—'}
+                      {doc.counterparty_tax_id && (
+                        <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>NIT: {doc.counterparty_tax_id}</div>
+                      )}
+                    </td>
+                    <td>
+                      <span
+                        className="num-mono"
+                        style={{
+                          fontWeight: 700,
+                          fontSize: '12px',
+                          color:
+                            doc.confidence_score >= 0.85
+                              ? 'var(--color-success)'
+                              : doc.confidence_score >= 0.6
+                              ? 'var(--color-warning)'
+                              : 'var(--text-dim)',
+                        }}
+                      >
+                        {doc.confidence_score ? `${(doc.confidence_score * 100).toFixed(0)}%` : '0%'}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={`badge ${
+                          doc.pipeline_status === 'MATCHED'
+                            ? 'badge-success'
+                            : doc.pipeline_status === 'REQUIRES_REVIEW'
+                            ? 'badge-warning'
+                            : doc.pipeline_status === 'EXTRACTED'
+                            ? 'badge-brand-blue'
+                            : 'badge-neutral'
+                        }`}
+                        style={{ fontSize: '9px' }}
+                      >
+                        {doc.pipeline_status}
+                      </span>
+                    </td>
+                    <td className="num-mono" style={{ textAlign: 'right', fontWeight: 600 }}>
+                      {doc.total_amount ? `$${doc.total_amount.toLocaleString('es-CO')}` : '—'}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'inline-flex', gap: '6px' }}>
+                        <button
+                          onClick={() => handleOpenReview(doc)}
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 8px', fontSize: '11px' }}
+                          title="Revisar y corregir datos"
+                        >
+                          <Eye size={13} />
+                          <span>Revisar</span>
+                        </button>
+
+                        {doc.financial_movement_id ? (
+                          <button
+                            onClick={() => handleUnlink(doc.id)}
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-danger)' }}
+                            title="Desvincular movimiento"
+                          >
+                            <Unlink size={13} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenLinkModal(doc.id)}
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--paguro-blue)' }}
+                            title="Vincular a movimiento financiero"
+                          >
+                            <LinkIcon size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Modal: Upload Document */}
+      {/* REVIEW & CORRECTION MODAL */}
+      {selectedDoc && editingDoc && (
+        <Modal
+          isOpen={!!selectedDoc}
+          onClose={() => setSelectedDoc(null)}
+          title={`Validación Humana • ${selectedDoc.file_name}`}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {selectedDoc.pipeline_status === 'REQUIRES_REVIEW' && (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  color: 'var(--color-warning)',
+                  fontSize: '12px',
+                }}
+              >
+                <AlertTriangle size={14} style={{ display: 'inline', marginRight: '6px' }} />
+                {selectedDoc.review_notes || 'Extracción con confianza moderada. Confirme los valores fiscales.'}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                Confianza IA Actual: {(selectedDoc.confidence_score * 100).toFixed(0)}%
+              </div>
+              <Button
+                variant="secondary"
+                onClick={handleExtractWithAi}
+                disabled={extracting}
+                style={{ fontSize: '12px', padding: '5px 10px' }}
+              >
+                <Sparkles size={13} color="var(--paguro-pink)" />
+                <span>{extracting ? 'Analizando...' : 'Re-extraer con IA'}</span>
+              </Button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="form-group">
+                <label className="form-label">Tipo Documental</label>
+                <select
+                  className="form-select"
+                  value={editingDoc.document_type}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, document_type: e.target.value as any })}
+                >
+                  <option value="ELECTRONIC_INVOICE">Factura Electrónica</option>
+                  <option value="COMMERCIAL_INVOICE">Factura Comercial</option>
+                  <option value="SUPPLIER_INVOICE">Factura de Proveedor</option>
+                  <option value="SWIFT_CONFIRMATION">Confirmación SWIFT</option>
+                  <option value="PAYMENT_RECEIPT">Comprobante de Pago</option>
+                  <option value="PACKING_LIST">Packing List</option>
+                  <option value="BILL_OF_LADING">Bill of Lading</option>
+                  <option value="IMPORT_DOCUMENT">Documento de Importación</option>
+                  <option value="TAX_DOCUMENT">Documento Tributario / DIAN</option>
+                  <option value="OTHER_SUPPORT">Otro Soporte</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Número de Factura / Ref</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editingDoc.invoice_number}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, invoice_number: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+              <div className="form-group">
+                <label className="form-label">Emisor / Proveedor</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editingDoc.counterparty_name}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, counterparty_name: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">NIT / RUT</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editingDoc.counterparty_tax_id}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, counterparty_tax_id: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+              <div className="form-group">
+                <label className="form-label">Subtotal</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="form-input"
+                  value={editingDoc.subtotal}
+                  onChange={(e) => {
+                    const sub = Number(e.target.value);
+                    const iva = Math.round(sub * 0.19);
+                    setEditingDoc({
+                      ...editingDoc,
+                      subtotal: sub,
+                      tax_iva: iva,
+                      total_amount: sub + iva - (editingDoc.tax_withholding || 0),
+                    });
+                  }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">IVA (19%)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="form-input"
+                  value={editingDoc.tax_iva}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, tax_iva: Number(e.target.value) })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Total (COP)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="form-input"
+                  value={editingDoc.total_amount}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, total_amount: Number(e.target.value) })}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Notas de Auditoría / Justificación</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Observaciones de validación..."
+                value={editingDoc.review_notes}
+                onChange={(e) => setEditingDoc({ ...editingDoc, review_notes: e.target.value })}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+              <Button variant="secondary" onClick={() => setSelectedDoc(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleSaveCorrection}
+                disabled={savingReview}
+                style={{ backgroundColor: 'var(--paguro-blue)' }}
+              >
+                {savingReview ? 'Validando...' : 'Aceptar & Validar Documento'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* LINK TO MOVEMENT MODAL */}
       <Modal
-        isOpen={isUploadOpen}
-        onClose={() => {
-          if (!uploading) setIsUploadOpen(false);
-        }}
-        title="Cargar Soporte Financiero a Supabase Storage"
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        title="Vincular Documento a Movimiento Financiero"
       >
-        <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {uploadError && (
-            <div
-              style={{
-                padding: '10px 14px',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: 'var(--radius-md)',
-                color: '#f87171',
-                fontSize: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <AlertCircle size={16} />
-              <span>{uploadError}</span>
-            </div>
-          )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+            Seleccione el movimiento del ledger contable que corresponde a este soporte documental:
+          </p>
 
-          {uploadSuccess && (
-            <div
-              style={{
-                padding: '10px 14px',
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                borderRadius: 'var(--radius-md)',
-                color: '#34d399',
-                fontSize: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <CheckCircle2 size={16} />
-              <span>{uploadSuccess}</span>
-            </div>
-          )}
-
-          {/* Entity Type Selector */}
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
-              Tipo de Registro a Vincular
-            </label>
+          <div className="form-group">
+            <label className="form-label">Movimiento Financiero</label>
             <select
-              value={entityType}
-              onChange={(e) => setEntityType(e.target.value as DocumentEntityType)}
-              disabled={uploading}
-              style={{
-                width: '100%',
-                padding: '9px 12px',
-                backgroundColor: 'var(--bg-secondary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-white)',
-                fontSize: '13px',
-              }}
+              className="form-select"
+              value={selectedMovementId}
+              onChange={(e) => setSelectedMovementId(e.target.value)}
             >
-              <option value="sales_invoice">Factura de Venta</option>
-              <option value="purchase_document">Factura de Gasto / Proveedor</option>
-              <option value="payment">Soporte de Pago</option>
-              <option value="customer">Expediente de Cliente</option>
-              <option value="supplier">Expediente de Proveedor</option>
-              <option value="tax_period">Certificado de Periodo Tributario</option>
+              <option value="">Seleccione un movimiento...</option>
+              {movements.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.movement_date} • {m.description} (${m.amount_cop.toLocaleString('es-CO')} COP)
+                </option>
+              ))}
             </select>
           </div>
 
-          {/* Target Entity Picker */}
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
-              Registro Específico
-            </label>
-            {loadingEntities ? (
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 0' }}>
-                Consultando registros disponibles...
-              </div>
-            ) : attachableEntities.length === 0 ? (
-              <div style={{ fontSize: '12px', color: '#fbbf24', padding: '8px 0' }}>
-                No hay registros disponibles de este tipo para asociar.
-              </div>
-            ) : (
-              <select
-                value={entityId}
-                onChange={(e) => setEntityId(e.target.value)}
-                disabled={uploading}
-                style={{
-                  width: '100%',
-                  padding: '9px 12px',
-                  backgroundColor: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--text-white)',
-                  fontSize: '13px',
-                }}
-              >
-                {attachableEntities.map((ent) => (
-                  <option key={ent.id} value={ent.id}>
-                    {ent.label} {ent.sublabel ? `— ${ent.sublabel}` : ''}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* File Picker */}
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
-              Archivo (PDF, JPG, PNG - Máx. 15 MB)
-            </label>
-            <div
-              style={{
-                border: '2px dashed var(--border-color)',
-                borderRadius: 'var(--radius-md)',
-                padding: '24px',
-                textAlign: 'center',
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                cursor: 'pointer',
-              }}
-              onClick={() => document.getElementById('file-upload-input')?.click()}
-            >
-              <input
-                id="file-upload-input"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={handleFileChange}
-                disabled={uploading}
-                style={{ display: 'none' }}
-              />
-              <Upload size={28} color="var(--text-dim)" style={{ marginBottom: '8px' }} />
-              {selectedFile ? (
-                <div>
-                  <p style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '13px' }}>
-                    {selectedFile.name}
-                  </p>
-                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    {(selectedFile.size / 1024).toFixed(1)} KB
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <p style={{ fontSize: '13px', color: 'var(--text-white)', fontWeight: 500 }}>
-                    Haga clic aquí para seleccionar el archivo
-                  </p>
-                  <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>
-                    Formatos seguros: PDF, JPEG, PNG
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
-              Notas u Observaciones (Opcional)
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              disabled={uploading}
-              rows={2}
-              placeholder="Ej: Factura electrónica firmada con CUFE..."
-              style={{
-                width: '100%',
-                padding: '9px 12px',
-                backgroundColor: 'var(--bg-secondary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-white)',
-                fontSize: '13px',
-                resize: 'none',
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() => setIsUploadOpen(false)}
-              disabled={uploading}
-            >
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+            <Button variant="secondary" onClick={() => setIsLinkModalOpen(false)}>
               Cancelar
             </Button>
             <Button
               variant="primary"
-              type="submit"
-              disabled={uploading || !selectedFile || !entityId}
-              icon={uploading ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={14} />}
+              onClick={handleConfirmLink}
+              disabled={!selectedMovementId}
+              style={{ backgroundColor: 'var(--paguro-blue)' }}
             >
-              {uploading ? 'Cargando a Storage...' : 'Subir Archivo'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal: Confirm Archive */}
-      <Modal
-        isOpen={!!docToArchive}
-        onClose={() => {
-          if (!archiving) setDocToArchive(null);
-        }}
-        title="Confirmar Archivo de Soporte"
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-            ¿Está seguro de que desea archivar el documento{' '}
-            <strong style={{ color: 'var(--text-white)' }}>{docToArchive?.file_name}</strong>?
-            El archivo permanecerá resguardado en el bucket privado pero no aparecerá en la lista activa estándar.
-          </p>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() => setDocToArchive(null)}
-              disabled={archiving}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="danger"
-              type="button"
-              onClick={handleArchiveConfirm}
-              disabled={archiving}
-            >
-              {archiving ? 'Archivando...' : 'Archivar Documento'}
+              Confirmar Vinculación
             </Button>
           </div>
         </div>
