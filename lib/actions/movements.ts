@@ -347,7 +347,7 @@ export async function updateMovementReviewStatusAction(
 /**
  * Retrieves movement categories for the active company.
  */
-export async function getMovementCategoriesAction(): Promise<ActionResponse<MovementCategory[]>> {
+export async function getMovementCategoriesAction(includeInactive: boolean = false): Promise<ActionResponse<MovementCategory[]>> {
   const session = await getServerAuthSession();
   if (!session) return { success: false, error: 'Sesión no iniciada.', data: [] };
 
@@ -355,11 +355,16 @@ export async function getMovementCategoriesAction(): Promise<ActionResponse<Move
   if (!supabase) return { success: false, error: 'Base de datos no disponible.', data: [] };
 
   try {
-    const { data: categories, error } = await supabase
+    let query = supabase
       .from('movement_categories')
       .select('*')
-      .eq('company_id', session.activeCompanyId)
-      .order('name');
+      .eq('company_id', session.activeCompanyId);
+
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
+
+    const { data: categories, error } = await query.order('name');
 
     if (error) return { success: false, error: error.message, data: [] };
     return { success: true, data: categories || [] };
@@ -367,3 +372,185 @@ export async function getMovementCategoriesAction(): Promise<ActionResponse<Move
     return { success: false, error: err.message, data: [] };
   }
 }
+
+export interface CategoryInput {
+  name: string;
+  code?: string;
+  parent_id?: string | null;
+  direction?: 'INCOME' | 'EXPENSE' | 'BOTH';
+  default_tax_relevance?: MovementTaxRelevance;
+  color?: string;
+  description?: string;
+}
+
+/**
+ * Creates a new movement category or subcategory for the active company.
+ */
+export async function createMovementCategoryAction(
+  input: CategoryInput
+): Promise<ActionResponse<MovementCategory>> {
+  const session = await getServerAuthSession();
+  if (!session) return { success: false, error: 'Sesión no iniciada.' };
+
+  // Authorization check: VIEWER cannot create categories
+  if (session.role === 'VIEWER') {
+    return { success: false, error: 'Acceso no autorizado: los visores no pueden modificar categorías.' };
+  }
+
+  const supabase = createServerSupabaseClient();
+  if (!supabase) return { success: false, error: 'Base de datos no disponible.' };
+
+  try {
+    const payload = {
+      company_id: session.activeCompanyId,
+      name: input.name.trim(),
+      code: input.code?.trim() || null,
+      parent_id: input.parent_id || null,
+      direction: input.direction || 'EXPENSE',
+      default_tax_relevance: input.default_tax_relevance || 'TAXABLE',
+      color: input.color || '#0098FF',
+      description: input.description?.trim() || null,
+      is_active: true,
+    };
+
+    const { data, error } = await supabase
+      .from('movement_categories')
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) return { success: false, error: error.message };
+
+    // Record audit trail
+    await supabase.from('audit_logs').insert({
+      company_id: session.activeCompanyId,
+      user_id: session.userId,
+      action: 'CATEGORY_CREATED',
+      entity_type: 'movement_categories',
+      entity_id: data.id,
+      after_json: data,
+      ip_or_context: `Categoría creada: ${data.name}`,
+    });
+
+    revalidatePath('/movements');
+    revalidatePath('/settings');
+    return { success: true, data };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Updates an existing movement category.
+ */
+export async function updateMovementCategoryAction(
+  categoryId: string,
+  input: Partial<CategoryInput & { is_active?: boolean }>
+): Promise<ActionResponse<MovementCategory>> {
+  const session = await getServerAuthSession();
+  if (!session) return { success: false, error: 'Sesión no iniciada.' };
+
+  if (session.role === 'VIEWER') {
+    return { success: false, error: 'Acceso no autorizado: los visores no pueden modificar categorías.' };
+  }
+
+  const supabase = createServerSupabaseClient();
+  if (!supabase) return { success: false, error: 'Base de datos no disponible.' };
+
+  try {
+    const { data: before } = await supabase
+      .from('movement_categories')
+      .select('*')
+      .eq('id', categoryId)
+      .eq('company_id', session.activeCompanyId)
+      .single();
+
+    if (!before) return { success: false, error: 'Categoría no encontrada.' };
+
+    const updatePayload: Record<string, any> = {
+      ...input,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: updated, error } = await supabase
+      .from('movement_categories')
+      .update(updatePayload)
+      .eq('id', categoryId)
+      .eq('company_id', session.activeCompanyId)
+      .select()
+      .single();
+
+    if (error) return { success: false, error: error.message };
+
+    await supabase.from('audit_logs').insert({
+      company_id: session.activeCompanyId,
+      user_id: session.userId,
+      action: 'CATEGORY_UPDATED',
+      entity_type: 'movement_categories',
+      entity_id: categoryId,
+      before_json: before,
+      after_json: updated,
+      ip_or_context: `Categoría actualizada: ${updated.name}`,
+    });
+
+    revalidatePath('/movements');
+    revalidatePath('/settings');
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Safely deactivates a movement category (preserving historical references).
+ */
+export async function deactivateMovementCategoryAction(
+  categoryId: string
+): Promise<ActionResponse<boolean>> {
+  const session = await getServerAuthSession();
+  if (!session) return { success: false, error: 'Sesión no iniciada.' };
+
+  if (session.role === 'VIEWER') {
+    return { success: false, error: 'Acceso no autorizado: los visores no pueden desactivar categorías.' };
+  }
+
+  const supabase = createServerSupabaseClient();
+  if (!supabase) return { success: false, error: 'Base de datos no disponible.' };
+
+  try {
+    const { data: before } = await supabase
+      .from('movement_categories')
+      .select('*')
+      .eq('id', categoryId)
+      .eq('company_id', session.activeCompanyId)
+      .single();
+
+    if (!before) return { success: false, error: 'Categoría no encontrada.' };
+
+    const { error } = await supabase
+      .from('movement_categories')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', categoryId)
+      .eq('company_id', session.activeCompanyId);
+
+    if (error) return { success: false, error: error.message };
+
+    await supabase.from('audit_logs').insert({
+      company_id: session.activeCompanyId,
+      user_id: session.userId,
+      action: 'CATEGORY_DEACTIVATED',
+      entity_type: 'movement_categories',
+      entity_id: categoryId,
+      before_json: before,
+      after_json: { is_active: false },
+      ip_or_context: `Categoría desactivada: ${before.name} (preservada para trazabilidad histórica)`,
+    });
+
+    revalidatePath('/movements');
+    revalidatePath('/settings');
+    return { success: true, data: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+

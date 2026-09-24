@@ -21,13 +21,18 @@ export interface MovementCategory {
   id: string;
   company_id: string;
   name: string;
-  code: string;
-  type: MovementDirection;
+  code?: string;
+  type?: MovementDirection;
+  direction?: MovementDirection | 'BOTH';
   parent_id?: string | null;
+  default_tax_relevance?: MovementTaxRelevance;
+  description?: string | null;
   color?: string | null;
   icon?: string | null;
-  is_system: boolean;
+  is_active?: boolean;
+  is_system?: boolean;
   created_at: string;
+  updated_at?: string;
   subcategories?: MovementCategory[];
 }
 

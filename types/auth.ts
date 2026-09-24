@@ -15,6 +15,7 @@ export interface AuthUser {
   }[];
   activeCompanyId: string;
   activeRole: UserRole;
+  role?: UserRole;
 }
 
 export type Permission = 

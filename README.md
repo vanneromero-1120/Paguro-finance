@@ -1,162 +1,122 @@
-# Paguro Finance
+# Paguro Finance V1 — Financial Intelligence + Tax Operations
 
-**Paguro Finance** is a centralized, internal, multi-company financial management system built for **Paguro Corp** and its operating business units (Paguro Corp, Pagureo, Pagurai, and future units).
+**Paguro Finance V1** is an internal, multi-company financial intelligence and tax operations platform engineered specifically for **Paguro Corp S.A.S.** and its operating units.
 
-It replaces fragmented spreadsheets and disconnected manual files with a single, immutable, and traceable operational source of truth for:
-- Sales Invoices and Accounts Receivable (CxC)
-- Purchases / Expenses and Accounts Payable (CxP)
-- Partial Payments and Multi-Document Allocations
-- Operational Value Added Tax (IVA) calculation and Period Management
-- Product Catalog and Ledger-Based Inventory Movements
-- Centralized Financial Document Repository
-- Executive Financial Dashboards and Tabular Reports
-- Role-Based Access Control (RBAC) and Row Level Security (RLS)
-- Comprehensive, Immutable Audit Logging
-
-> **Compliance Note**: Paguro Finance provides operational financial management. It does not replace certified double-entry accounting software or official DIAN tax filing declarations.
-
----
-
-## 1. Technology Stack
-
-- **Frontend**: Next.js 14+ (App Router), React 18, TypeScript (Strict Mode)
-- **Styling**: Vanilla CSS Design Tokens, Modular CSS Variables, Tabular Financial Typography
-- **Backend**: Next.js Server Actions, Route Handlers, Supabase Client (`@supabase/ssr`)
-- **Database**: PostgreSQL 15+ hosted on Supabase with Row Level Security (RLS)
-- **Storage**: Supabase Storage (`financial-documents` private bucket with signed URLs)
-- **Testing**: Vitest automated test suite for financial math, inventory ledgers, and RBAC
+It provides a single, immutable, and traceable source of truth for:
+- Normalized Financial Movements Ledger (Inflows, Outflows, Currency Conversion to COP)
+- Anti-Duplicate Transaction Detection Engine
+- Google Drive Document Ingestion Pipeline & AI Classification
+- Human Review Queue for low-confidence (<85%) document extractions
+- Multi-Document Economic Linking (e.g. Invoice + Packing List + Bill of Lading + SWIFT)
+- Bank Account Management & Intelligent Reconciliation
+- Payment Gateway Event Normalization (Stripe, Wompi, PayPal, etc.)
+- Colombian Tax Operations Engine (IVA 19% generado vs descontable, Retefuente, ICA)
+- Tax Obligations Compliance Calendar (`PREPARED` → `FILED` → `PAID`)
+- Read-Only Asesor IA Financial Advisor with 10 deterministic tools and calculation traceability
+- Multi-Tenant Row-Level Security (RLS) and Immutable Cryptographic Audit Logging
 
 ---
 
-## 2. Project Structure
+## 1. Visual Identity & Brand System
 
-```
-Paguro-Finance/
-├── docs/                      # Technical architecture documentation
-│   ├── architecture.md        # System layers, boundaries & tenant model
-│   ├── database-schema.md     # Relational schema DDL specifications
-│   ├── permissions.md         # RBAC matrix (SUPER_ADMIN, ADMIN, FINANCE, ACCOUNTANT, OPS, VIEWER)
-│   ├── financial-rules.md     # Exact rounding, invariants, voiding rules
-│   ├── business-rules.md      # Movement deltas, terms, sequences
-│   ├── security.md            # RLS policies, token handling, storage
-│   ├── implementation-plan.md # Phased implementation roadmap & status
-│   ├── decisions.md           # Architecture Decision Records (ADRs 001-010)
-│   └── testing-plan.md        # Verification plan & test coverage
-├── database/
-│   ├── migrations/            # Versioned PostgreSQL DDL & Triggers
-│   │   ├── 00001_initial_schema.sql
-│   │   ├── 00002_functions_and_triggers.sql
-│   │   ├── 00003_row_level_security.sql
-│   │   └── 00004_seed_demo_data.sql
-│   ├── policies/              # RLS catalog
-│   └── seed/                  # Modular demo seed scripts
-├── app/                       # Next.js 14+ App Router
-│   ├── layout.tsx             # Root layout with AppShell
-│   ├── page.tsx               # Redirect to dashboard
-│   ├── auth/callback/         # Supabase token exchange callback
-│   ├── login/                 # Authentication & demo presets
-│   ├── forgot-password/       # Password recovery request flow
-│   ├── reset-password/        # Secure credential update flow
-│   ├── unauthorized/          # 403 Security boundary screen
-│   ├── dashboard/             # Executive KPI dashboard
-│   ├── sales/                 # Invoices, Customers, Collections
-│   ├── purchases/             # Expenses, Suppliers, Disbursements
-│   ├── inventory/             # Products catalog & Movement ledger
-│   ├── taxes/                 # IVA by period & adjustments
-│   ├── reports/               # Financial reports & CSV exports
-│   ├── documents/             # Storage document explorer
-│   └── settings/              # Companies, Users, Audit log
-├── middleware.ts              # Root session token refresher & route protection
-├── components/                # Reusable UI & Layout components
-├── lib/                       # Core enterprise engines & utilities
-│   ├── auth/                  # Permissions, Server Auth, & Actions
-│   ├── finance/               # Financial math & rounding engine
-│   ├── storage/               # Private document storage (signed URLs)
-│   ├── supabase/              # Browser, server, admin, & middleware clients
-│   └── utils/                 # Formatting & currency helpers
-├── types/                     # Database and domain TypeScript types
-└── tests/                     # Automated Vitest suites (41 tests)
-```
+Paguro Finance strictly adheres to the official Paguro brand identity:
+- **Primary Palette:**
+  - **Paguro Blue (`#0098FF`):** Primary actions, active navigation states, primary financial metrics.
+  - **Paguro Pink (`#E72175`):** High-impact highlights, alert badges, urgent compliance states.
+  - **Paguro Navy (`#1E293E`):** Background base, sidebar, cards, elevated overlays.
+  - **White (`#FFFFFF`):** High-contrast typography and clean backgrounds.
+- **Typography:**
+  - Headings: `Montserrat` (700 / 800)
+  - UI / Body: `Inter` (400 / 500 / 600)
+  - Numeric Data: `JetBrains Mono` (tabular numbers)
+- **Official Assets:** Stored and served from [`public/brand/`](file:///c:/Users/user/Downloads/ESTRUCTURA%20SISTEMA%20FINANCIERO/Paguro-Finance/public/brand) (`paguro-logo-primary.webp`, `paguro-icon.png`, `paguro-icon.svg`, `favicon-32x32.png`, etc.).
 
 ---
 
-## 3. Local Setup & Quickstart
+## 2. Primary V1 Navigation Routes
 
-### Prerequisites
-- Node.js 18+ (Tested on Node.js v24.14.0)
-- npm 9+ (Tested on npm 11.9.0)
-- Supabase account (optional for local offline demo)
+The production application is focused around 8 core modules:
 
-### Installation
+1. **`/dashboard` — Executive Financial Dashboard:** 9 real-time KPI cards, 5 period filters, Central Review Queue, and 6 financial summary sections.
+2. **`/movements` — Normalized Financial Movements Ledger:** Full multi-criteria filtering, duplicate candidate warning, and comprehensive detail drawer.
+3. **`/documents` — Document Intelligence Pipeline:** Google Drive discovery, AI extraction status tabs, Human Review Queue, and movement linker.
+4. **`/taxes` — Colombian Tax Operations:** IVA 19% generado vs descontable, Retefuente, ICA municipal rates, and statutory DIAN disclaimers.
+5. **`/obligations` — Tax Obligations Calendar:** Compliance tracker with state machine (`UPCOMING` → `PREPARED` → `FILED` → `PAID`) and evidence document attachment.
+6. **`/ai-advisor` — Asesor Financiero IA:** 10 read-only deterministic tools querying live PostgreSQL data across 8 defined time windows with full calculation traceability.
+7. **`/integrations` — Integrations Registry:** Provider registry (Google Drive, DIAN, Bancolombia, Stripe) with idempotent sync logging (`sync_logs`).
+8. **`/settings` — Configuration Hub:** Corporate details, Movement Category management (create, edit, soft-deactivate), Company Tax Profile editor, Users RBAC, and Audit Log.
+
+---
+
+## 3. Technology Stack
+
+- **Framework:** Next.js 14.2+ (App Router), React 18, TypeScript (Strict Mode)
+- **Styling:** Vanilla CSS Design Tokens (`app/globals.css`), CSS Variables, Tabular Numeric Formatting
+- **Database:** PostgreSQL 17 on Supabase with Multi-Tenant Row-Level Security (RLS)
+- **Storage:** Supabase Storage (`financial-documents` private bucket with signed URLs)
+- **Testing:** Vitest automated test suite (214/214 tests passing across 15 test suites)
+
+---
+
+## 4. Local Development Setup
+
+### 1. Prerequisites
+- Node.js `>= 18.17.0` (Node 20 LTS recommended)
+- npm `>= 9.0.0`
+
+### 2. Installation
 ```bash
-# Clone the repository
-git clone https://github.com/pagurocorp/paguro-finance.git
+git clone <repository-url>
 cd Paguro-Finance
-
-# Install dependencies
 npm install
 ```
 
-### Environment Configuration
+### 3. Environment Configuration
 Copy `.env.example` to `.env.local`:
 ```bash
 cp .env.example .env.local
 ```
-Fill in your Supabase project credentials:
+Fill in the required Supabase credentials:
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
+NEXT_PUBLIC_SUPABASE_URL=https://suuwgzrilxoswvrqigbp.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
-*(Note: If no Supabase credentials are provided, Paguro Finance automatically operates using the rich in-memory operational seed store).*
 
-### Database Setup
-To deploy the database schema to your Supabase PostgreSQL database, execute the migration files sequentially:
-1. `database/migrations/00001_initial_schema.sql` (Tables, constraints, indexes)
-2. `database/migrations/00002_functions_and_triggers.sql` (Recalculations, audit triggers, stock checks)
-3. `database/migrations/00003_row_level_security.sql` (Multi-tenant RLS policies)
-4. `database/migrations/00005_products_cross_company_integrity.sql` (SKU uniqueness & FK integrity)
-5. `database/migrations/00006_sales_invoice_numbering.sql` (Sequential invoice sequence)
-6. `database/migrations/00007_tax_periods_notes_created_by.sql` (Tax period audit metadata)
-7. `database/migrations/00008_documents_and_storage_policies.sql` (Private storage bucket & RLS)
-8. `database/migrations/00009_company_contact_fields.sql` (Company profile contact fields)
-
-*(Note: `00004_seed_demo_data.sql` is for local offline development only and is NOT applied in production).*
+### 4. Running the Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 4. Development, Quality Assurance & Production Verification
+## 5. Testing & Verification
 
 ```bash
-# Run automated test suites (14 suites, 196 tests passing)
+# Run Vitest test suite (214 tests)
 npm test
 
-# Type checking
+# Run strict TypeScript typecheck
 npx tsc --noEmit
 
-# Linting
+# Run Next.js ESLint
 npm run lint
 
-# Build for production
+# Compile production build
 npm run build
-
-# Verify against live Supabase production gate
-node --env-file=.env.local scripts/verify-full-production.mjs
 ```
 
 ---
 
-## 5. Security & Row Level Security (RLS)
+## 6. Pilot Validation Workflow
 
-- Every financial and operational entity includes a mandatory `company_id`.
-- Access is strictly governed by active user membership in `company_users` and evaluated via `has_company_access()`.
-- Cross-company data leaks are prevented at the database kernel level through RLS.
-- Financial audit logs in `audit_logs` are strictly append-only and cryptographically protected against tampering.
-- Role management enforces anti-self-escalation and role hierarchy rules.
-- Complete specification available in [Production Readiness Documentation](docs/production-readiness.md).
+Before deploying to live operations, execute the 13-stage pilot testing procedure documented in:
+[`docs/real-data-pilot.md`](file:///c:/Users/user/Downloads/ESTRUCTURA%20SISTEMA%20FINANCIERO/Paguro-Finance/docs/real-data-pilot.md)
 
 ---
 
-## 6. License & Ownership
-Copyright © 2026 Paguro Corp. All rights reserved. Internal operational software.
+## 7. Compliance & Legal Disclaimer
 
+> **Statutory Disclaimer:** Paguro Finance V1 provides internal managerial financial intelligence and tax estimation. It is not an official tax filing service, does not transmit electronic XML documents directly to the DIAN, and does not replace the professional judgment of a certified Public Accountant.

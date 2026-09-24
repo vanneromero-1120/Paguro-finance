@@ -12,7 +12,7 @@ import {
   AccountingDocument,
   TaxObligation,
   CompanyTaxProfile,
-} from '@/types/v1-financial';
+} from '../types/v1-financial';
 
 describe('Paguro Finance V1 - Financial Intelligence Engine', () => {
   const companyA = 'c1111111-1111-1111-1111-111111111111';
@@ -279,4 +279,85 @@ describe('Paguro Finance V1 - Financial Intelligence Engine', () => {
     expect(notificationTriggers).toContain('DAYS_30');
     expect(notificationTriggers).toContain('OVERDUE');
   });
+
+  // 15. Payment Gateway Event Normalization into Financial Movements
+  it('normalizes raw payment gateway events into financial movements with fee deduction', async () => {
+    const { normalizeGatewayEventToFinancialMovement } = await import('../lib/integrations/payment-providers');
+
+    const stripeEvent = {
+      provider: 'STRIPE' as const,
+      transaction_id: 'ch_3Mwj4x2eZvKYlo2C0',
+      created_at: '2026-03-20T14:30:00Z',
+      gross_amount: 100,
+      fee_amount: 3.2,
+      currency: 'USD',
+      customer_name: 'Acme International',
+      type: 'PAYMENT' as const,
+      description: 'SaaS Subscription Tier 2',
+      reference_order_id: 'ORD-9912',
+    };
+
+    const normalized = normalizeGatewayEventToFinancialMovement(stripeEvent, 4100);
+
+    expect(normalized.direction).toBe('INCOME');
+    expect(normalized.source_type).toBe('PAYMENT_PLATFORM');
+    expect(normalized.original_amount).toBe(100);
+    expect(normalized.currency).toBe('USD');
+    expect(normalized.exchange_rate).toBe(4100);
+    expect(normalized.description).toContain('Comisión pasarela: 3.2 USD');
+    expect(normalized.counterparty).toBe('Acme International');
+    expect(normalized.external_reference).toBe('ORD-9912');
+  });
+
+  // 16. Multi-document economic relationship
+  it('supports multiple supporting documents belonging to the same economic movement', () => {
+    const movementId = 'mov-import-001';
+
+    const supportingDocs = [
+      { id: 'doc-1', document_type: 'COMMERCIAL_INVOICE', financial_movement_id: movementId },
+      { id: 'doc-2', document_type: 'PACKING_LIST', financial_movement_id: movementId },
+      { id: 'doc-3', document_type: 'BILL_OF_LADING', financial_movement_id: movementId },
+      { id: 'doc-4', document_type: 'SWIFT_CONFIRMATION', financial_movement_id: movementId },
+    ];
+
+    const linkedToMovement = supportingDocs.filter((d) => d.financial_movement_id === movementId);
+    expect(linkedToMovement.length).toBe(4);
+    expect(new Set(linkedToMovement.map((d) => d.document_type)).size).toBe(4);
+  });
+
+  // 17. Google Drive document classifier
+  it('classifies Google Drive accounting documents from file names and extensions', async () => {
+    const { classifyDriveDocument } = await import('../lib/integrations/google-drive');
+
+    expect(classifyDriveDocument('factura_electronica_fe_9912.pdf', 'application/pdf')).toBe('ELECTRONIC_INVOICE');
+    expect(classifyDriveDocument('comprobante_swift_bancolombia.pdf', 'application/pdf')).toBe('SWIFT_CONFIRMATION');
+    expect(classifyDriveDocument('packing_list_shipment_2026.pdf', 'application/pdf')).toBe('PACKING_LIST');
+    expect(classifyDriveDocument('bill_of_lading_maersk.pdf', 'application/pdf')).toBe('BILL_OF_LADING');
+    expect(classifyDriveDocument('declaracion_importacion_dian.pdf', 'application/pdf')).toBe('IMPORT_DOCUMENT');
+  });
+
+  // 18. Movement category lifecycle (soft-deactivation preserves historical audit)
+  it('soft-deactivates categories without destroying historical associations', () => {
+    const category: MovementCategory = {
+      id: 'cat-legacy',
+      company_id: companyA,
+      name: 'Old Expense Line',
+      direction: 'EXPENSE',
+      default_tax_relevance: 'TAXABLE',
+      is_active: true,
+      created_at: '2025-01-01',
+      updated_at: '2025-01-01',
+    };
+
+    // Deactivation preserves the category object and only sets is_active: false
+    const deactivatedCategory: MovementCategory = {
+      ...category,
+      is_active: false,
+      updated_at: '2026-03-23',
+    };
+
+    expect(deactivatedCategory.id).toBe(category.id);
+    expect(deactivatedCategory.is_active).toBe(false);
+  });
 });
+

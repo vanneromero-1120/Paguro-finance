@@ -450,3 +450,66 @@ export async function getTaxNotificationsAction(): Promise<ActionResponse<TaxNot
     return { success: false, error: err.message, data: [] };
   }
 }
+
+/**
+ * Schedules a tax alert notification across configured channels (IN_APP, EMAIL, WHATSAPP, SLACK).
+ * Reminders supported: 30d, 15d, 7d, 3d, 1d, due date, overdue.
+ */
+export async function scheduleTaxNotificationAction(
+  obligationId: string,
+  channel: 'IN_APP' | 'EMAIL' | 'WHATSAPP' | 'SLACK',
+  triggerType: 'DAYS_30' | 'DAYS_15' | 'DAYS_7' | 'DAYS_3' | 'DAYS_1' | 'DUE_DATE' | 'OVERDUE'
+): Promise<ActionResponse<TaxNotification>> {
+  const session = await getServerAuthSession();
+  if (!session) return { success: false, error: 'Sesión no iniciada.' };
+
+  const supabase = createServerSupabaseClient();
+  if (!supabase) return { success: false, error: 'Base de datos no disponible.' };
+
+  try {
+    const { data: obligation } = await supabase
+      .from('tax_obligations')
+      .select('id, name, due_date')
+      .eq('id', obligationId)
+      .eq('company_id', session.activeCompanyId)
+      .single();
+
+    if (!obligation) return { success: false, error: 'Obligación tributaria no encontrada.' };
+
+    const dueDate = new Date(obligation.due_date);
+    let offsetDays = 0;
+    if (triggerType === 'DAYS_30') offsetDays = -30;
+    else if (triggerType === 'DAYS_15') offsetDays = -15;
+    else if (triggerType === 'DAYS_7') offsetDays = -7;
+    else if (triggerType === 'DAYS_3') offsetDays = -3;
+    else if (triggerType === 'DAYS_1') offsetDays = -1;
+    else if (triggerType === 'DUE_DATE') offsetDays = 0;
+    else if (triggerType === 'OVERDUE') offsetDays = 1;
+
+    const scheduledDate = new Date(dueDate.getTime() + offsetDays * 24 * 60 * 60 * 1000);
+
+    const { data, error } = await supabase
+      .from('tax_notifications')
+      .insert({
+        company_id: session.activeCompanyId,
+        tax_obligation_id: obligationId,
+        channel,
+        trigger_type: triggerType,
+        scheduled_for: scheduledDate.toISOString(),
+        status: channel === 'IN_APP' ? 'PENDING' : 'PENDING',
+        payload: {
+          obligation_name: obligation.name,
+          due_date: obligation.due_date,
+          channel_status: channel === 'IN_APP' ? 'ACTIVE' : 'NOT_CONFIGURED',
+        },
+      })
+      .select()
+      .single();
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, data };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+

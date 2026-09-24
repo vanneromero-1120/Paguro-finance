@@ -514,6 +514,103 @@ export default function V1DashboardPage() {
         </div>
       </div>
 
+      {/* CENTRAL HUMAN REVIEW QUEUE */}
+      <div className="card" style={{ marginTop: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertTriangle size={18} color="var(--paguro-pink)" />
+              <h2 style={{ fontSize: '16px', fontWeight: 600 }}>Cola Central de Revisión</h2>
+              {data?.centralReviewQueue && data.centralReviewQueue.length > 0 && (
+                <span className="badge badge-brand-pink" style={{ fontSize: '10px' }}>
+                  {data.centralReviewQueue.length} {data.centralReviewQueue.length === 1 ? 'pendiente' : 'pendientes'}
+                </span>
+              )}
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '2px' }}>
+              Discrepancias activas: documentos de baja confianza, movimientos sin conciliar y soportes faltantes
+            </p>
+          </div>
+          <Link href="/documents" className="btn btn-secondary" style={{ fontSize: '12px', padding: '6px 12px' }}>
+            <span>Revisar Documentos</span>
+            <ArrowRight size={12} />
+          </Link>
+        </div>
+
+        {data?.centralReviewQueue && data.centralReviewQueue.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {data.centralReviewQueue.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid var(--border-subtle)',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                  <span
+                    className={`badge ${
+                      item.severity === 'HIGH'
+                        ? 'badge-brand-pink'
+                        : item.severity === 'MEDIUM'
+                        ? 'badge-warning'
+                        : 'badge-neutral'
+                    }`}
+                    style={{ fontSize: '10px', textTransform: 'uppercase' }}
+                  >
+                    {item.severity === 'HIGH' ? 'Prioridad Alta' : item.severity === 'MEDIUM' ? 'Media' : 'Informativa'}
+                  </span>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-white)' }}>
+                      {item.title}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {item.description}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{item.source}</span>
+                  <Link
+                    href={item.linkHref}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '11px', padding: '4px 10px' }}
+                  >
+                    Resolver
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: '24px',
+              textAlign: 'center',
+              backgroundColor: 'rgba(16, 185, 129, 0.04)',
+              border: '1px solid rgba(16, 185, 129, 0.15)',
+              borderRadius: '8px',
+              color: 'var(--color-success)',
+              fontSize: '13px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+            }}
+          >
+            <ShieldCheck size={16} />
+            <span>Excelente: No hay discrepancias contables ni documentos pendientes de validación en este período.</span>
+          </div>
+        )}
+      </div>
+
       {/* SECTION 6: RECENT MOVEMENTS TABLE */}
       <div className="card" style={{ marginTop: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>

@@ -36,6 +36,24 @@ export interface V1DashboardKPIs {
   } | null;
 }
 
+export interface CentralReviewItem {
+  id: string;
+  type:
+    | 'UNKNOWN_MOVEMENT'
+    | 'UNKNOWN_CATEGORY'
+    | 'LOW_CONFIDENCE_DOC'
+    | 'DUPLICATE_CANDIDATE'
+    | 'UNMATCHED_BANK'
+    | 'MISSING_DOCUMENT'
+    | 'UNKNOWN_TAX_TREATMENT';
+  title: string;
+  description: string;
+  source: string;
+  linkHref: string;
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+  created_at: string;
+}
+
 export interface V1DashboardData {
   company: {
     id: string;
@@ -58,6 +76,7 @@ export interface V1DashboardData {
     matched: number;
   };
   recentMovements: FinancialMovement[];
+  centralReviewQueue: CentralReviewItem[];
 }
 
 function resolveV1Dates(filter: V1DashboardFilter): { dateFrom: string; dateTo: string } {
@@ -298,6 +317,78 @@ export async function getV1DashboardDataAction(
       nextTaxObligation: nextObligation,
     };
 
+    // Central Review Queue aggregation
+    const centralReviewQueue: CentralReviewItem[] = [];
+
+    // 1. Low-confidence documents
+    docs
+      .filter((d: any) => d.pipeline_status === 'REQUIRES_REVIEW')
+      .slice(0, 5)
+      .forEach((d: any) => {
+        centralReviewQueue.push({
+          id: d.id,
+          type: 'LOW_CONFIDENCE_DOC',
+          title: `Documento: ${d.file_name}`,
+          description: `Extracción IA con confianza del ${d.confidence_score ? Math.round(d.confidence_score * 100) : '< 85'}%. Requiere validación humana.`,
+          source: 'Google Drive / Documentos',
+          linkHref: '/documents',
+          severity: 'HIGH',
+          created_at: d.uploaded_at || new Date().toISOString(),
+        });
+      });
+
+    // 2. Unmatched bank transactions
+    unmatchedTxs.slice(0, 5).forEach((tx) => {
+      centralReviewQueue.push({
+        id: tx.id,
+        type: 'UNMATCHED_BANK',
+        title: `Extracto Bancario: ${tx.description}`,
+        description: `Monto: $${Number(tx.amount).toLocaleString('es-CO')} ${tx.currency}. Sin movimiento correspondiente vinculado.`,
+        source: 'Bancos / Conciliación',
+        linkHref: '/movements',
+        severity: 'MEDIUM',
+        created_at: tx.posted_at,
+      });
+    });
+
+    // 3. Movements requiring review, missing category or missing invoice support
+    (recentMovementsRes.data || []).forEach((m: any) => {
+      if (m.review_status === 'REQUIRES_REVIEW' || m.review_status === 'FLAGGED') {
+        centralReviewQueue.push({
+          id: m.id,
+          type: 'UNKNOWN_MOVEMENT',
+          title: `Movimiento: ${m.description}`,
+          description: `Monto: $${Number(m.amount_cop).toLocaleString('es-CO')} COP. Marcado para verificación contable.`,
+          source: m.source_type,
+          linkHref: '/movements',
+          severity: 'MEDIUM',
+          created_at: m.movement_date,
+        });
+      } else if (!m.category_id) {
+        centralReviewQueue.push({
+          id: m.id,
+          type: 'UNKNOWN_CATEGORY',
+          title: `Sin Categoría: ${m.description}`,
+          description: `Monto: $${Number(m.amount_cop).toLocaleString('es-CO')} COP. Requiere clasificación contable.`,
+          source: m.source_type,
+          linkHref: '/movements',
+          severity: 'LOW',
+          created_at: m.movement_date,
+        });
+      } else if (m.tax_relevance === 'TAXABLE' && !m.document_id && m.direction === 'EXPENSE') {
+        centralReviewQueue.push({
+          id: m.id,
+          type: 'MISSING_DOCUMENT',
+          title: `Gasto deducible sin factura: ${m.description}`,
+          description: `Monto: $${Number(m.amount_cop).toLocaleString('es-CO')} COP gravable sin factura soporte vinculada.`,
+          source: m.source_type,
+          linkHref: '/documents',
+          severity: 'HIGH',
+          created_at: m.movement_date,
+        });
+      }
+    });
+
     return {
       success: true,
       data: {
@@ -317,6 +408,7 @@ export async function getV1DashboardDataAction(
         upcomingTaxObligations: taxObs,
         documentsHealth,
         recentMovements: (recentMovementsRes.data || []) as FinancialMovement[],
+        centralReviewQueue,
       },
     };
   } catch (err: any) {

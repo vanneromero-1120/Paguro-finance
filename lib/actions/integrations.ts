@@ -87,7 +87,7 @@ export async function triggerSyncAction(
       .update({ sync_status: 'SYNCING' })
       .eq('id', conn?.id);
 
-    // 4. Execute idempotent logic based on provider
+    // 4. Execute real idempotent logic based on provider
     let recordsFound = 0;
     let recordsCreated = 0;
     let recordsUpdated = 0;
@@ -95,19 +95,25 @@ export async function triggerSyncAction(
     let finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED';
 
     if (provider === 'GOOGLE_DRIVE') {
-      // Simulate incremental discovery of new Drive files from September 2025 folder
-      recordsFound = 12;
-      recordsCreated = 0; // Idempotent: 0 created if already existing
-      recordsUpdated = 12;
+      const { syncGoogleDriveAccountingDocuments } = await import('@/lib/integrations/google-drive');
+      const syncResult = await syncGoogleDriveAccountingDocuments(session.activeCompanyId);
+      recordsFound = syncResult.filesDiscovered;
+      recordsCreated = syncResult.filesIngested;
+      recordsUpdated = syncResult.filesSkipped;
+
+      if (!syncResult.success) {
+        finalStatus = 'FAILED';
+        errorSummary = syncResult.message;
+      }
     } else if (conn?.status === 'NOT_CONFIGURED') {
       // Do not fabricate successful sync if credentials are not configured
       recordsFound = 0;
-      errorSummary = 'El proveedor no cuenta con credenciales API ni autorización OAuth activa.';
+      errorSummary = 'El proveedor no cuenta con credenciales API ni autorización OAuth activa (NOT CONFIGURED).';
       finalStatus = 'FAILED';
     } else {
-      recordsFound = 5;
+      recordsFound = 0;
       recordsCreated = 0;
-      recordsUpdated = 5;
+      recordsUpdated = 0;
     }
 
     // 5. Finalize sync log

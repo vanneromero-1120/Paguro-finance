@@ -41,3 +41,24 @@ The implementation of **Paguro Finance** progresses through systematic milestone
 - [x] **Immutable Audit Trail Viewer (COMPLETED MILESTONE)**: Live `audit_logs` viewer with search, action, entity, and date range filters, JSON before/after state diff inspector, and cryptographic immutability protection (tamper-proof RLS).
 - [x] **Global Mock Deprecation & Purge (COMPLETED MILESTONE)**: 100% removal of `lib/supabase/mock-store.ts`, elimination of demo switcher buttons and test credentials from `/login`, isolated test fixtures for unit testing, and zero mock dependencies in production runtime.
 - [x] **Production Readiness & Final QA Gate (COMPLETED MILESTONE)**: 14 passing Vitest test suites (196/196 tests), zero TypeScript compilation errors, zero ESLint warnings, successful Next.js production build (25 routes), and live Supabase end-to-end operational verification passed.
+
+---
+
+## Milestone 4: Paguro Finance V1 — Financial Intelligence + Tax Operations (COMPLETED MASTER MILESTONE)
+- [x] **Official Paguro Brand Identity**: `/public/brand` production structure, official palette (`#0098FF`, `#E72175`, `#1E293E`, `#FFFFFF`), Montserrat/Inter typography across all 8 modules and login portal.
+- [x] **Migration 00010 & Schema**: Applied to live Supabase (`suuwgzrilxoswvrqigbp`): `movement_categories`, `bank_accounts`, `financial_movements`, `bank_transactions`, `company_tax_profile`, `tax_obligations`, `tax_notifications`, `integration_connections`, `sync_logs`.
+- [x] **Authoritative Financial Movements Ledger**: Normalized event model, multi-filter drawer, duplicate prevention pre-insert engine (`checkDuplicateMovement`), audit trail logging.
+- [x] **Category Management**: Full CRUD (`createMovementCategoryAction`, `updateMovementCategoryAction`, `deactivateMovementCategoryAction`), soft-deactivation preserving historical references, and management UI in `/settings`.
+- [x] **Google Drive Document Ingestion Architecture**: OAuth initiation route (`/api/auth/google`), callback token exchange (`/api/auth/google/callback`), incremental discovery (September 2025+), idempotent ingestion, automated document type classification, graceful `NOT CONFIGURED` handling.
+- [x] **Multi-Document Economic Relationship**: Multiple supporting documents (Invoice, Packing List, Bill of Lading, SWIFT) linkable to a single financial movement without duplicate expenses.
+- [x] **Human Review Queue**: Automatic routing of extractions with <85% confidence to `/documents` review tab; manual correction, approval, and linker.
+- [x] **Bank Accounts & Intelligent Reconciliation**: Statement feeds, multi-factor scored candidate matching (amount, ±3 days, text similarity), reversible unmatch actions.
+- [x] **Payment Gateway Abstraction**: Normalization engine for Stripe, Wompi, PayPal, Mercado Pago, Addi, PayU into `financial_movements`.
+- [x] **Colombian Tax Engine & Company Tax Profile**: IVA 19% generado vs descontable, Retefuente, ICA municipal rates, statutory DIAN disclaimers, and profile management.
+- [x] **Tax Obligations Calendar**: Compliance tracker (`UPCOMING` → `PREPARED` → `FILED` → `PAID`) with evidence document attachments and multi-channel notification alert scheduler.
+- [x] **Read-Only Asesor IA**: 10 deterministic tools querying live PostgreSQL tables across 8 time windows with complete calculation traceability cards.
+- [x] **Central Review Queue**: Surfaced on executive `/dashboard` and throughout V1 for immediate action on discrepancies, low-confidence docs, and missing invoices.
+- [x] **Automated Testing Suite**: 15 Vitest test suites (214/214 tests passing) including comprehensive `tests/v1-financial-intelligence.test.ts`.
+- [x] **Production Verification**: Strict TypeScript compilation (`npx tsc --noEmit` exited 0), ESLint (`next lint` exited 0), and Next.js production build (`next build` compiled 33/33 routes).
+- [x] **Pilot Documentation**: Complete 13-stage pilot testing procedure in `docs/real-data-pilot.md`.
+

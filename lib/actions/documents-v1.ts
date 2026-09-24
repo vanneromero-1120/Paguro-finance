@@ -335,9 +335,17 @@ export async function unlinkDocumentFromMovementAction(
       .single();
 
     if (doc?.financial_movement_id) {
+      // Check if other documents are still attached to this same economic operation
+      const { data: otherDocs } = await supabase
+        .from('documents')
+        .select('id')
+        .eq('financial_movement_id', doc.financial_movement_id)
+        .neq('id', documentId);
+
+      const nextPrimaryId = otherDocs && otherDocs.length > 0 ? otherDocs[0].id : null;
       await supabase
         .from('financial_movements')
-        .update({ document_id: null })
+        .update({ document_id: nextPrimaryId })
         .eq('id', doc.financial_movement_id)
         .eq('company_id', session.activeCompanyId);
     }
@@ -358,3 +366,32 @@ export async function unlinkDocumentFromMovementAction(
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * Retrieves all supporting documents belonging to a single economic movement
+ * (e.g. Commercial Invoice + Packing List + Bill of Lading + SWIFT).
+ */
+export async function getMovementSupportingDocumentsAction(
+  movementId: string
+): Promise<ActionResponse<AccountingDocument[]>> {
+  const session = await getServerAuthSession();
+  if (!session) return { success: false, error: 'Sesión no iniciada.', data: [] };
+
+  const supabase = createServerSupabaseClient();
+  if (!supabase) return { success: false, error: 'Base de datos no disponible.', data: [] };
+
+  try {
+    const { data: docs, error } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('financial_movement_id', movementId)
+      .eq('company_id', session.activeCompanyId)
+      .order('created_at', { ascending: true });
+
+    if (error) return { success: false, error: error.message, data: [] };
+    return { success: true, data: docs || [] };
+  } catch (err: any) {
+    return { success: false, error: err.message, data: [] };
+  }
+}
+

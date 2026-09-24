@@ -65,6 +65,7 @@ export async function getServerAuthSession(): Promise<AuthUser | null> {
         companies: companiesList,
         activeCompanyId: activeCompanyMembership.company.id,
         activeRole: activeCompanyMembership.role,
+        role: activeCompanyMembership.role,
       };
     }
 

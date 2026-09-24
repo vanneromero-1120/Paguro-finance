@@ -1,150 +1,110 @@
-# Paguro Finance V1 — Production Readiness Specification & Deployment Blueprint
+# Paguro Finance V1 — Production Readiness & Deployment Blueprint
 
-**Document Version:** 1.0.0  
+**Document Version:** 1.1.0  
 **Target Environment:** Production (Vercel + Supabase Enterprise Cloud)  
-**System Status:** READY FOR PRODUCTION  
+**System Status:** READY FOR REAL DATA PILOT  
+**Release:** Version 1.0 (Financial Intelligence + Tax Operations System)  
+**Supabase Database:** `suuwgzrilxoswvrqigbp` (PostgreSQL 17, Multi-tenant RLS active)
 
 ---
 
-## 1. Architecture Status
+## 1. V1 Architecture & Capabilities
 
-Paguro Finance V1 is built as a multi-company, multi-tenant financial operations and treasury management platform. All runtime services are powered exclusively by authoritative server-side execution, live Supabase PostgreSQL, Row-Level Security (RLS), and append-only cryptographic audit logging.
+Paguro Finance V1 is a **Financial Intelligence + Tax Operations System** designed for Paguro Corp. It normalizes all corporate financial events, automates accounting document tracking, detects duplicate movements, supports bank reconciliation, calculates estimated Colombian tax positions (IVA, Retefuente, ICA), and provides an interactive AI Financial Advisor grounded strictly in live database calculations.
 
-### Architectural Invariants
-1. **Multi-Company Data Isolation:** Enforced at the database engine level via PostgreSQL Row-Level Security (RLS) policies on every sensitive table (`companies`, `customers`, `suppliers`, `products`, `inventory_movements`, `sales_invoices`, `sales_invoice_items`, `payments`, `payment_allocations`, `purchase_documents`, `purchase_document_items`, `tax_periods`, `documents`, `audit_logs`).
-2. **Strict RBAC Model:** Dynamic permission evaluation (`SUPER_ADMIN`, `ADMIN`, `FINANCE`, `ACCOUNTANT`, `OPERATIONS`, `VIEWER`) based on active company memberships in `company_users`.
-3. **Anti-Self-Escalation & Role Hierarchy:** Users cannot modify their own roles or elevate privileges beyond their authorization. Only `SUPER_ADMIN` can assign `SUPER_ADMIN`.
-4. **Append-Only Immutable Audit Trail:** Financial mutations and role transitions automatically insert records into `audit_logs`. Database triggers and absence of UPDATE/DELETE RLS policies prevent tampering or deletion.
-5. **Zero Mock Dependencies:** Zero reliance on `mock-store.ts` or demo presets in production runtime.
-
----
-
-## 2. Deployment Requirements
-
-### Hosting Target
-- **Web Application & API Server Actions:** Vercel (Next.js 14 App Router)
-- **Database, Auth & Storage:** Supabase Cloud (PostgreSQL 15+)
-
-### Prerequisites
-- Node.js runtime: `>= 18.17.0` (Recommended: Node 20 LTS or Node 24)
-- Supabase project with database extensions `pgcrypto` and `uuid-ossp`
-- Private Supabase Storage bucket: `financial-documents` (private, non-public)
-- HTTPS mandatory on all production domains
+### Core Architectural Invariants:
+1. **Authoritative Ledger (`financial_movements`):** All financial inflows and outflows normalize into this single table regardless of origin (Bank, Document, Payment Gateway, or Manual Entry).
+2. **Multi-Document Economic Operations:** A single economic operation (e.g. import shipment) can link multiple supporting documents (Commercial Invoice, Packing List, Bill of Lading, SWIFT) without duplicating the underlying financial movement.
+3. **Multi-Company Data Isolation:** Enforced at the PostgreSQL engine level via Row-Level Security (RLS) policies on all tables.
+4. **Append-Only Immutable Audit Trail:** Sensitive mutations (movements, categories, tax profiles, unmatching, review statuses) write to `audit_logs`.
+5. **Zero Mock Dependencies:** 100% of production runtime queries live Supabase tables. Non-configured integrations explicitly surface as `NOT CONFIGURED`.
 
 ---
 
-## 3. Environment Variables
+## 2. Completed V1 Modules & Route Manifest
 
-Documented in `.env.example`. Required for Vercel Project Settings:
-
-| Variable Name | Environment | Description |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Production, Preview | Live Supabase project URL (`https://suuwgzrilxoswvrqigbp.supabase.co`) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Production, Preview | Supabase public anonymous API key (safe for browser) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Production (Secret) | Server-only administrative key (used only for migrations/workers, never in browser) |
-| `NEXT_PUBLIC_APP_NAME` | Production, Preview | `Paguro Finance` |
-| `NEXT_PUBLIC_APP_URL` | Production | Canonical public URL (e.g. `https://finance.pagurocorp.com`) |
-| `NEXT_PUBLIC_DEFAULT_CURRENCY` | Production | Default currency code (`COP`) |
-| `NEXT_PUBLIC_DEFAULT_TIMEZONE` | Production | Default timezone (`America/Bogota`) |
-| `SUPABASE_STORAGE_BUCKET_FINANCIAL_DOCS` | Production | `financial-documents` |
-
-> [!CAUTION]
-> Never prepend `NEXT_PUBLIC_` to `SUPABASE_SERVICE_ROLE_KEY`. The service role key bypasses RLS and must strictly remain server-only.
-
----
-
-## 4. Supabase Project Requirements & Configuration
-
-1. **Applied Database Migrations:**
-   - `00001_initial_schema.sql` (Tables, constraints, indexes)
-   - `00002_functions_and_triggers.sql` (Automated recalculations, balance updates, stock checks, audit triggers)
-   - `00003_row_level_security.sql` (Enterprise multi-company RLS)
-   - `00005_products_cross_company_integrity.sql` (SKU uniqueness and cross-company foreign-key guard)
-   - `00006_sales_invoice_numbering.sql` (Automated sequential numbering)
-   - `00007_tax_periods_notes_created_by.sql` (Tax period metadata)
-   - `00008_documents_and_storage_policies.sql` (Private storage bucket and object isolation)
-   - `00009_company_contact_fields.sql` (Company profile contact and address fields)
-
-2. **Storage Policies:**
-   - Bucket `financial-documents` set to `public = FALSE`.
-   - Access strictly governed by RLS storage policies (`pol_storage_financial_docs_select`, `pol_storage_financial_docs_insert`, etc.).
-   - Downloads generated using short-lived signed URLs (5-minute TTL).
-
-3. **Authentication Settings (Supabase Auth Dashboard):**
-   - **Site URL:** `https://finance.pagurocorp.com` (or Vercel production domain)
-   - **Redirect URLs:**
-     - `https://finance.pagurocorp.com/auth/callback`
-     - `https://finance.pagurocorp.com/reset-password`
-     - `http://localhost:3000/auth/callback` (for local development)
-   - Email provider enabled with template configuration.
+| Route | Module Name | Status | Functionality |
+|---|---|:---:|---|
+| `/` | Root / Redirect | **ACTIVE** | Authenticated routing to `/dashboard` or `/login` |
+| `/login` | Portal de Acceso | **ACTIVE** | Paguro official identity, secure password login |
+| `/dashboard` | Executive Dashboard | **ACTIVE** | 9 KPI cards, 5 period filters, Central Review Queue, 6 summary sections |
+| `/movements` | Movimientos Financieros | **ACTIVE** | Authoritative normalized ledger, multi-filter drawer, duplicate prevention |
+| `/documents` | Documentos Contables | **ACTIVE** | Google Drive pipeline, AI extraction, human review queue, movement linker |
+| `/taxes` | Operaciones Tributarias | **ACTIVE** | IVA 19% generado/descontable, Retefuente, ICA, statutory DIAN disclaimers |
+| `/obligations` | Calendario Tributario | **ACTIVE** | Compliance tracker, state machine (`PREPARED` → `FILED` → `PAID`), proofs |
+| `/ai-advisor` | Asesor Financiero IA | **ACTIVE** | 10 read-only deterministic tools, 8 time windows, calculation traceability |
+| `/integrations` | Hub de Integraciones | **ACTIVE** | Google Drive, DIAN, Bancolombia, Stripe registry with idempotent `sync_logs` |
+| `/settings` | Configuración | **ACTIVE** | Company data, Category CRUD, Tax Profile editor, Users RBAC, Audit log |
+| `/api/auth/google` | Google OAuth Route | **ACTIVE** | Initiates Google OAuth consent screen for Drive document ingestion |
+| `/api/auth/google/callback` | Google OAuth Callback | **ACTIVE** | Exchanges authorization code, saves tokens in database, logs audit trail |
 
 ---
 
-## 5. Backup & Disaster Recovery Strategy
+## 3. Database & Migration Status
 
-Paguro Finance handles mission-critical accounting and treasury operations. The operational backup strategy includes:
-
-1. **Supabase Automated Daily Backups:**
-   - Point-in-Time Recovery (PITR) recommended for production enterprise instances (enables restoration to any second in the past 7 days).
-   - Daily automated logical dumps retained according to Supabase retention policies.
-2. **Pre-Migration Snapshots:**
-   - Before applying any schema migration in production, run a manual pg_dump:
-     ```bash
-     pg_dump -h db.[project-ref].supabase.co -U postgres -d postgres -F c -b -v -f paguro_backup_$(date +%Y%m%d_%H%M%S).dump
-     ```
-3. **Repository Version Control:**
-   - All schema changes, functions, triggers, and storage policies must reside under `database/migrations/`.
-   - Continuous deployment strictly tied to Git tags/commits.
-
----
-
-## 6. Operational Checklist
-
-Before declaring Go-Live:
-- [x] All 14 test suites passing (`196/196` unit tests in Vitest).
-- [x] TypeScript compilation passes with zero errors (`npx tsc --noEmit`).
-- [x] ESLint passes with zero warnings (`npm run lint`).
-- [x] Production build passes cleanly (`npm run build`).
-- [x] Live Supabase security audit passes (zero anonymous access, RLS active).
-- [x] Anti-self-escalation verified on live database.
-- [x] Audit logs verified append-only and tamper-proof.
-- [x] Production runtime mock dependencies: **0**.
-- [x] Demo switcher credentials removed from `/login`.
-- [x] Private storage policies verified (signed URLs only).
+All database changes are represented in version-controlled SQL migrations:
+- `00001` through `00009`: Base schema, functions, triggers, invoices, purchases, audit.
+- `00010_v1_financial_intelligence_and_tax.sql`:
+  - `movement_categories`: Hierarchical category tree with color tokens and soft-deactivation.
+  - `bank_accounts`: Bank entity tracking, account types, balances.
+  - `financial_movements`: Central normalized ledger with RLS.
+  - `bank_transactions`: Bank statement feeds and match state machine.
+  - `company_tax_profile`: Tax regime, municipality, ICA configuration.
+  - `tax_obligations`: Compliance tracker with proof document attachments.
+  - `tax_notifications`: Multi-channel reminder alert triggers.
+  - `integration_connections` & `sync_logs`: Idempotent sync engine.
+  - `documents` extensions: Google Drive file IDs, AI extraction confidence scores.
 
 ---
 
-## 7. Rollback Strategy
+## 4. Quality & Build Verification Metrics
 
-In the event of a production regression or incident:
-
-1. **Application Rollback (Vercel):**
-   - In the Vercel Dashboard, select the previous stable deployment and click **Instant Rollback**.
-   - Traffic shifts within seconds without code rebuilds.
-2. **Database Schema Rollback:**
-   - Schema migrations are additive and backwards-compatible.
-   - For irreversible DDL changes, restore to the pre-migration PITR snapshot via the Supabase Dashboard.
-3. **Storage Rollback:**
-   - Files in Supabase Storage are immutable by storage path (timestamp prefixed). Older document versions are preserved.
+| Test Suite / Tool | Command | Result | Notes |
+|---|---|:---:|---|
+| **Vitest Test Suite** | `npm test` | **PASS (214/214)** | 15 test files passed, 0 failures |
+| **V1 Intelligence Tests** | `tests/v1-financial-intelligence.test.ts` | **PASS (18/18)** | Covers all 15 acceptance criteria |
+| **TypeScript Strict Check** | `npx tsc --noEmit` | **PASS (0 errors)** | 100% strict type safety across all files |
+| **Next.js ESLint** | `npm run lint` | **PASS (0 warnings)** | `✔ No ESLint warnings or errors` |
+| **Production Build** | `npm run build` | **PASS (33/33)** | All routes compiled and prerendered cleanly |
 
 ---
 
-## 8. Known Limitations (V1 Scope)
+## 5. External Credentials & Setup Instructions
 
-Paguro Finance V1 is designed as a financial operations, treasury, invoicing, and tax tracking platform. The following features are intentionally reserved for future versions:
+External integrations are designed to remain resilient and explicitly display `NOT CONFIGURED` until client credentials are supplied.
 
-1. **DIAN Electronic Invoicing:** V1 generates internal legal sales invoices, consecutive numbering, and PDF exports. Direct XML web service transmission to DIAN (facturación electrónica previa) is slated for V2.
-2. **Official DIAN Tax Filing:** V1 calculates generated and deductible IVA, retention balances, and period closures. Direct automated filing with DIAN Muisca is slated for V2.
-3. **Full Double-Entry Ledger:** V1 operates on transactional accounting and sub-ledgers (A/R, A/P, Cash Flow, Tax Balances). Full multi-account general ledger double-entry journal is slated for V2.
-4. **Automated Bank Feeds:** Payments are recorded manually or via CSV batch imports. Open Banking API feeds (Bancolombia, Davivienda) are planned for V2.
-5. **Third-Party Sync:** Integrations with Shopify, Addi, and Meta Ads are scheduled for subsequent iterations.
+### 1. Google Drive Document Ingestion Setup:
+When client credentials become available, configure in `.env.local`:
+```env
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
+```
+**Google Cloud Console Requirements:**
+1. Enable **Google Drive API**.
+2. Configure OAuth Consent Screen (Internal or External).
+3. Add Authorized Redirect URI:
+   - Development: `http://localhost:3000/api/auth/google/callback`
+   - Production: `https://[your-domain]/api/auth/google/callback`
+4. Required Scopes: `https://www.googleapis.com/auth/drive.readonly` and `email`.
+
+### 2. Bank & Payment Providers:
+- Bancolombia / Davivienda: Currently marked `REQUIRES PROVIDER`. Manual statement upload and CSV normalization are available immediately.
+- Payment Gateways (Stripe, Wompi): Architecture ready. Normalizes charges and fee deductions into `financial_movements`.
 
 ---
 
-## 9. Future Integrations Roadmap
+## 6. Version 1 Limitations
 
-- **V1.1:** Enhanced Excel / CSV historical migration tool with schema mapper.
-- **V1.2:** Automated email delivery of invoices with signed download attachments.
-- **V2.0:** DIAN Web Service integration with electronic signing certificate (facturación electrónica).
-- **V2.1:** Banking API direct reconciliation (Bancolombia Transferencias & PSE).
-- **V2.2:** E-commerce multi-store sync (Shopify, WooCommerce, MercadoLibre).
+Consistent with the 4-version roadmap (`docs/product-roadmap.md`), V1 intentionally focuses on financial intelligence and tax operations. It does **not** attempt to provide:
+1. Official XML transmission or electronic invoice clearance with the DIAN (Reserved for V2).
+2. Autonomous tax filing or automated debiting of tax payments (Human review mandatory).
+3. Full double-entry debits/credits bookkeeping (Ledger is single-entry normalized).
+4. Multi-location physical warehouse inventory dispatching (Reserved for V2).
+5. Consolidated financial statements across legal holding entities (Reserved for V3).
+
+---
+
+## 7. Pilot Execution Workflow
+
+Refer to [`docs/real-data-pilot.md`](file:///c:/Users/user/Downloads/ESTRUCTURA%20SISTEMA%20FINANCIERO/Paguro-Finance/docs/real-data-pilot.md) for the complete 13-stage pilot testing protocol.
