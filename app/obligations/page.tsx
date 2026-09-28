@@ -25,11 +25,14 @@ import {
   getTaxObligationsAction,
   createTaxObligationAction,
   updateTaxObligationStatusAction,
+  getCompanyTaxProfileAction,
+  isTaxProfileComplete,
 } from '@/lib/actions/tax-operations';
-import { TaxObligation, TaxObligationStatus } from '@/types/v1-financial';
+import { TaxObligation, TaxObligationStatus, CompanyTaxProfile } from '@/types/v1-financial';
 
 export default function ObligationsPage() {
   const [obligations, setObligations] = useState<TaxObligation[]>([]);
+  const [taxProfile, setTaxProfile] = useState<CompanyTaxProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [taxTypeFilter, setTaxTypeFilter] = useState('ALL');
 
@@ -53,9 +56,15 @@ export default function ObligationsPage() {
 
   const loadObligations = useCallback(async () => {
     setLoading(true);
-    const res = await getTaxObligationsAction(taxTypeFilter);
-    if (res.success && res.data) {
-      setObligations(res.data);
+    const [obRes, profRes] = await Promise.all([
+      getTaxObligationsAction(taxTypeFilter),
+      getCompanyTaxProfileAction(),
+    ]);
+    if (obRes.success && obRes.data) {
+      setObligations(obRes.data);
+    }
+    if (profRes.success && profRes.data) {
+      setTaxProfile(profRes.data);
     }
     setLoading(false);
   }, [taxTypeFilter]);
@@ -158,6 +167,38 @@ export default function ObligationsPage() {
           </Button>
         </div>
       </div>
+
+      {/* INCOMPLETE PROFILE ALERT BANNER */}
+      {taxProfile && !isTaxProfileComplete(taxProfile) && (
+        <div
+          style={{
+            padding: '16px 20px',
+            borderRadius: '10px',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AlertTriangle size={24} color="var(--color-danger)" style={{ flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--color-danger)' }}>
+                CONFIGURACIÓN TRIBUTARIA INCOMPLETA
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Faltan datos fiscales requeridos (NIT, Régimen, Municipio, Responsabilidades RUT). Complete la configuración en Ajustes para generar y proyectar obligaciones fiscales automáticamente.
+              </div>
+            </div>
+          </div>
+          <a href="/settings" className="btn btn-primary" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+            Completar Perfil
+          </a>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div

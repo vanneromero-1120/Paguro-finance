@@ -229,10 +229,11 @@ export default function MovementsPage() {
             onChange={(e) => setFilters({ ...filters, source_type: e.target.value as any })}
           >
             <option value="ALL">Todos los Orígenes</option>
+            <option value="GOOGLE_DRIVE">Google Drive</option>
+            <option value="MANUAL">Manual</option>
             <option value="BANK">Banco</option>
             <option value="PAYMENT_PLATFORM">Pasarela</option>
-            <option value="ACCOUNTING_DOCUMENT">Documento</option>
-            <option value="MANUAL">Manual</option>
+            <option value="ACCOUNTING_DOCUMENT">Documento Soporte</option>
             <option value="IMPORT">Importación</option>
           </select>
         </div>
@@ -307,8 +308,27 @@ export default function MovementsPage() {
                       </span>
                     </td>
                     <td>
-                      <span className="badge badge-brand-blue" style={{ fontSize: '9px' }}>
-                        {m.source_type}
+                      <span
+                        className={`badge ${
+                          m.source_type === 'GOOGLE_DRIVE' || m.source_type === 'ACCOUNTING_DOCUMENT'
+                            ? 'badge-brand-blue'
+                            : m.source_type === 'MANUAL'
+                            ? 'badge-brand-pink'
+                            : m.source_type === 'BANK'
+                            ? 'badge-success'
+                            : 'badge-neutral'
+                        }`}
+                        style={{ fontSize: '9px' }}
+                      >
+                        {m.source_type === 'GOOGLE_DRIVE'
+                          ? 'Google Drive'
+                          : m.source_type === 'ACCOUNTING_DOCUMENT'
+                          ? 'Doc. Drive'
+                          : m.source_type === 'MANUAL'
+                          ? 'Manual'
+                          : m.source_type === 'BANK'
+                          ? 'Bancario'
+                          : m.source_type}
                       </span>
                     </td>
                     <td>

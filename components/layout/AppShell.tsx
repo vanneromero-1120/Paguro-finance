@@ -28,12 +28,11 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   // Determine title from V1 pathname
   const getPageTitle = () => {
-    if (!pathname || pathname === '/' || pathname === '/dashboard') return 'Dashboard Financiero V1';
-    if (pathname.startsWith('/movements')) return 'Movimientos Financieros Normalizados';
-    if (pathname.startsWith('/documents')) return 'Ingesta Contable & Extracción IA';
+    if (!pathname || pathname === '/' || pathname === '/dashboard') return 'Dashboard Financiero';
+    if (pathname.startsWith('/movements')) return 'Movimientos Financieros';
+    if (pathname.startsWith('/documents')) return 'Ingesta & Documentos Contables';
     if (pathname.startsWith('/taxes')) return 'Operaciones Tributarias & IVA';
     if (pathname.startsWith('/obligations')) return 'Obligaciones & Calendario Fiscal';
-    if (pathname.startsWith('/ai-advisor')) return 'Asesor Financiero & Tributario IA';
     if (pathname.startsWith('/integrations')) return 'Integraciones & Conectores';
     if (pathname.startsWith('/settings')) return 'Configuración & Perfil Tributario';
     return 'Paguro Finance';

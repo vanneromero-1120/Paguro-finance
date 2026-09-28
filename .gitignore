@@ -40,3 +40,7 @@ scratch/
 .DS_Store
 *.pem
 Thumbs.db
+
+# Local test & diagnostic scripts
+scripts/test-*.mjs
+scripts/diag-*.mjs

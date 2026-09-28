@@ -6,12 +6,34 @@
 export type MovementDirection = 'INCOME' | 'EXPENSE';
 
 export type MovementSourceType =
+  | 'GOOGLE_DRIVE'
   | 'BANK'
   | 'PAYMENT_PLATFORM'
   | 'ACCOUNTING_DOCUMENT'
   | 'MANUAL'
   | 'IMPORT'
   | 'SYSTEM';
+
+export type DocumentProvenance =
+  | 'USER_VERIFIED'
+  | 'MANUAL_ENTRY'
+  | 'VERIFIED_INTEGRATION'
+  | 'AI_EXTRACTED'
+  | 'RAW_DRIVE_DATA'
+  | 'GOOGLE_DRIVE';
+
+export type DocumentSourceStatus = 'ACTIVE' | 'SOURCE_MISSING' | 'REMOVED_FROM_DRIVE';
+
+export interface SyncConflict {
+  conflict_type: 'SOURCE_CHANGED_AFTER_VERIFICATION';
+  detected_at: string;
+  previous_values: Record<string, any>;
+  new_extracted_values: Record<string, any>;
+  changed_fields: string[];
+  source_document: string;
+  last_verified_at?: string | null;
+  last_verified_by?: string | null;
+}
 
 export type MovementTaxRelevance = 'TAXABLE' | 'NON_TAXABLE' | 'EXEMPT' | 'EXCLUDED';
 export type MovementTaxStatus = 'PENDING_MAPPING' | 'MAPPED_ESTIMATED' | 'VERIFIED';
@@ -162,6 +184,16 @@ export interface AccountingDocument {
   // V1 Drive Ingestion & AI Pipeline fields
   drive_file_id?: string | null;
   drive_folder_path?: string | null;
+  drive_modified_time?: string | null;
+  drive_version?: string | null;
+  drive_md5_checksum?: string | null;
+  last_synced_at?: string | null;
+  source_status?: DocumentSourceStatus;
+  provenance?: DocumentProvenance;
+  user_verified_fields?: string[];
+  verified_at?: string | null;
+  verified_by?: string | null;
+  conflict_details?: SyncConflict | null;
   document_type: AccountingDocumentType;
   source_url?: string | null;
   document_date?: string | null;
@@ -268,6 +300,30 @@ export type IntegrationStatus =
   | 'NEEDS_ATTENTION'
   | 'DISCONNECTED'
   | 'NOT_CONFIGURED';
+
+export interface GoogleDriveConnectionConfig {
+  folder_id?: string;
+  folder_name?: string;
+  access_token?: string;
+  refresh_token?: string;
+  expires_at?: string;
+  token_type?: string;
+  authorized_by?: string;
+  auto_sync_enabled?: boolean;
+  sync_interval_minutes?: number;
+  next_scheduled_sync_at?: string | null;
+  last_successful_sync_at?: string | null;
+  start_page_token?: string;
+  saved_page_token?: string;
+  last_sync_stats?: {
+    filesDiscovered: number;
+    filesUpdated: number;
+    filesRequiringReview: number;
+    syncErrors: number;
+    filesMissing: number;
+  };
+  [key: string]: any;
+}
 
 export interface IntegrationConnection {
   id: string;

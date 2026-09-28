@@ -20,7 +20,6 @@ import {
   AlertTriangle,
   RefreshCw,
   Clock,
-  Sparkles,
   Layers,
 } from 'lucide-react';
 import { StatCard } from '@/components/ui/StatCard';
@@ -225,37 +224,6 @@ export default function V1DashboardPage() {
           }
           icon={<CalendarClock size={18} />}
         />
-
-        {/* 9. AI Advisor CTA */}
-        <div
-          className="card card-glow-blue"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            background: 'linear-gradient(135deg, rgba(19, 27, 46, 0.95) 0%, rgba(12, 18, 34, 0.95) 100%)',
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <Sparkles size={16} color="var(--paguro-blue)" />
-              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--paguro-blue)', textTransform: 'uppercase' }}>
-                Asesor IA Paguro
-              </span>
-            </div>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-white)' }}>
-              ¿Dudas sobre el flujo o impuestos del periodo?
-            </div>
-          </div>
-          <Link
-            href="/ai-advisor"
-            className="btn btn-primary"
-            style={{ fontSize: '12px', padding: '7px 12px', marginTop: '12px', justifyContent: 'space-between' }}
-          >
-            <span>Consultar Asesor</span>
-            <ArrowRight size={14} />
-          </Link>
-        </div>
       </div>
 
       {/* 6 BUSINESS SECTIONS */}

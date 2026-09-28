@@ -65,34 +65,27 @@ Development Philosophy:
 - Interactive calendar views: Month, Quarter, Year.
 - Tax notification engine: 30, 15, 7, 3, 1 days before, due date, overdue across in-app, email, WhatsApp, Slack.
 
-### 9. AI Financial + Tax Advisor (`Asesor IA`)
-- Dedicated assistant module with standard time windows: 7d, 30d, current month, previous month, current quarter, previous quarter, 12m, current year, custom.
-- Read-only structured tools: `get_financial_summary`, `get_expenses_by_category`, `get_income_summary`, `get_tax_summary`, `get_upcoming_obligations`, `get_unreconciled_transactions`, `get_document_status`, `get_period_comparison`, `get_top_expenses`, `get_cash_flow_summary`.
-- Complete traceability (period, transaction count, categories, calculation basis, source documents).
-- Strict tax safety disclaimers: Financial observation vs tax interpretation vs official tax obligation.
-
-### 10. Integrations Architecture (`Integraciones`)
-- Provider abstractions for: Google Drive, Banking APIs/Plaid/Belvo, Payment Platforms (Stripe, PayPal, Shopify Payments, Mercado Pago, Wompi, Addi, PayU), AI Provider, Notification services.
+### 9. Integrations Architecture (`Integraciones`)
+- Provider abstractions for: Google Drive (Continuous & Automatic Sync), Banking APIs, Payment Platforms (Stripe, PayPal, Mercado Pago, Wompi), Notification services.
 - Real statuses: Connected, Needs Attention, Disconnected, Not Configured.
 - Idempotent sync engine with full sync logging (`sync_logs`).
 
-### 11. Human Review Queue
-- Central review queue for: Unknown movements, unknown categories, low-confidence documents, duplicate candidates, unmatched bank transactions, missing supporting documents, unknown tax treatments.
+### 10. Human Review Queue
+- Central review queue for: Unknown movements, unknown categories, low-confidence documents, duplicate candidates, unmatched bank transactions, missing supporting documents, unknown tax treatments, and source changes after verification.
 
-### 12. V1 Dashboard & Simplified Navigation
+### 11. V1 Dashboard & Simplified Navigation
 - V1 Sidebar Navigation:
   1. Dashboard
   2. Movimientos
   3. Documentos
   4. Impuestos
   5. Obligaciones
-  6. Asesor IA
-  7. Integraciones
-  8. Configuración
-- V1 Dashboard KPI Cards: Cash Position, Ingresos, Egresos, Flujo Neto, Gastos por Categoría, Movimientos sin Conciliar, Documentos Pendientes, IVA Estimado, Próxima Obligación Tributaria.
+  6. Integraciones
+  7. Configuración
+- V1 Dashboard KPI Cards: Ingresos, Egresos, Flujo Neto, Mayor Categoría, Movimientos sin Conciliar, Documentos Pendientes, IVA Estimado/Revisado, Próxima Obligación Tributaria.
 - Sections: Cash Overview, Expense Analysis, Banking, Tax, Document Health, Recent Activity.
 
-### 13. Paguro Brand Identity
+### 12. Paguro Brand Identity
 - Official Paguro logo, white logo, and isotype ("eo" infinity symbol).
 - Palette tokens:
   - `--paguro-blue: #0098FF`
@@ -104,9 +97,17 @@ Development Philosophy:
 
 ---
 
-## What is NOT in V1 (DEFERRED / HIDDEN)
+## What is NOT in V1 (DEFERRED TO VERSION 2)
 
-The following modules exist or are deferred, and are **HIDDEN from V1 navigation** while preserving database integrity:
+The following modules and capabilities belong strictly to **VERSION 2** and are **NOT visible in V1 production UI**:
+- **AI Financial & Tax Advisor (`Asesor IA`)**: Conversational module, chat interface, and interactive natural language assistant.
+- **Conversational Financial Analytics**: Natural language query synthesis over financial ledgers.
+- **AI Tax Advisory**: Autonomous tax regime interpretation and advisory recommendations.
+- **AI Financial Insights**: Automated runway analysis, cash flow recommendations, and predictive forecasting.
+- **AI Anomaly Analysis**: Autonomous discrepancy and fraud detection.
+*(Note: Reusable internal extraction technology and heuristic classification for accounting documents remain available in backend code, but no user-facing conversational AI agent exists in V1).*
+
+The following additional ERP features are deferred from V1:
 - Full ERP inventory management (`/inventory/*` hidden)
 - Customer relationship management / CRM (`/sales/customers` hidden)
 - Sales invoicing generator (`/sales/invoices` hidden)

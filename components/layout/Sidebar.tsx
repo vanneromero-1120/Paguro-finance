@@ -10,7 +10,6 @@ import {
   FolderOpen,
   Percent,
   CalendarCheck,
-  BotMessageSquare,
   Network,
   Settings,
 } from 'lucide-react';
@@ -18,13 +17,12 @@ import {
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
 
-  const v1NavItems = [
+  const v1NavItems: { label: string; href: string; icon: React.ReactNode; badge?: string }[] = [
     { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={19} /> },
     { label: 'Movimientos', href: '/movements', icon: <ArrowLeftRight size={19} /> },
     { label: 'Documentos', href: '/documents', icon: <FolderOpen size={19} /> },
     { label: 'Impuestos', href: '/taxes', icon: <Percent size={19} /> },
     { label: 'Obligaciones', href: '/obligations', icon: <CalendarCheck size={19} /> },
-    { label: 'Asesor IA', href: '/ai-advisor', icon: <BotMessageSquare size={19} />, badge: 'AI' },
     { label: 'Integraciones', href: '/integrations', icon: <Network size={19} /> },
     { label: 'Configuración', href: '/settings', icon: <Settings size={19} /> },
   ];

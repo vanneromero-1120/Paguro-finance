@@ -325,16 +325,31 @@ export async function getV1DashboardDataAction(
       .filter((d: any) => d.pipeline_status === 'REQUIRES_REVIEW')
       .slice(0, 5)
       .forEach((d: any) => {
-        centralReviewQueue.push({
-          id: d.id,
-          type: 'LOW_CONFIDENCE_DOC',
-          title: `Documento: ${d.file_name}`,
-          description: `Extracción IA con confianza del ${d.confidence_score ? Math.round(d.confidence_score * 100) : '< 85'}%. Requiere validación humana.`,
-          source: 'Google Drive / Documentos',
-          linkHref: '/documents',
-          severity: 'HIGH',
-          created_at: d.uploaded_at || new Date().toISOString(),
-        });
+        if (d.conflict_details) {
+          centralReviewQueue.push({
+            id: d.id,
+            type: 'LOW_CONFIDENCE_DOC',
+            title: `Conflicto en Soporte: ${d.file_name}`,
+            description: `Archivo en Google Drive modificado tras validación humana (SOURCE_CHANGED_AFTER_VERIFICATION). Requiere confirmación.`,
+            source: 'Google Drive (Conflicto)',
+            linkHref: '/documents',
+            severity: 'HIGH',
+            created_at: d.conflict_details.detected_at || d.uploaded_at || new Date().toISOString(),
+          });
+        } else {
+          centralReviewQueue.push({
+            id: d.id,
+            type: 'LOW_CONFIDENCE_DOC',
+            title: `Documento: ${d.file_name}`,
+            description: `Extracción IA con confianza del ${
+              d.confidence_score ? Math.round(d.confidence_score * 100) : '< 85'
+            }%. Requiere validación humana.`,
+            source: 'Google Drive / Documentos',
+            linkHref: '/documents',
+            severity: 'HIGH',
+            created_at: d.uploaded_at || new Date().toISOString(),
+          });
+        }
       });
 
     // 2. Unmatched bank transactions

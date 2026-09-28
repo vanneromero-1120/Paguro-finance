@@ -230,8 +230,24 @@ export async function reviewAndCorrectDocumentAction(
       .eq('company_id', session.activeCompanyId)
       .single();
 
+    const verifiedFieldNames = Object.keys(corrections).filter(
+      (k) => (corrections as any)[k] !== undefined && k !== 'pipeline_status'
+    );
+
     const updatePayload: Record<string, any> = {
       ...corrections,
+      provenance: 'USER_VERIFIED',
+      verified_at: new Date().toISOString(),
+      verified_by: session.userId,
+      user_verified_fields: verifiedFieldNames.length > 0 ? verifiedFieldNames : [
+        'document_type',
+        'invoice_number',
+        'counterparty_name',
+        'total_amount',
+        'subtotal',
+        'tax_iva',
+      ],
+      conflict_details: null,
       pipeline_status: corrections.pipeline_status || 'ACCEPTED',
       confidence_score: 1.0, // Confirmed by human
     };
@@ -392,6 +408,90 @@ export async function getMovementSupportingDocumentsAction(
     return { success: true, data: docs || [] };
   } catch (err: any) {
     return { success: false, error: err.message, data: [] };
+  }
+}
+
+/**
+ * Resolves a SOURCE_CHANGED_AFTER_VERIFICATION conflict on a document.
+ */
+export async function resolveDocumentConflictAction(
+  documentId: string,
+  resolution: 'KEEP_HUMAN_VERIFIED' | 'ACCEPT_DRIVE_SOURCE'
+): Promise<ActionResponse<AccountingDocument>> {
+  const session = await getServerAuthSession();
+  if (!session) return { success: false, error: 'Sesión no iniciada.' };
+
+  const supabase = createServerSupabaseClient();
+  if (!supabase) return { success: false, error: 'Base de datos no disponible.' };
+
+  try {
+    const { data: doc, error: fetchErr } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('id', documentId)
+      .eq('company_id', session.activeCompanyId)
+      .single();
+
+    if (fetchErr || !doc) return { success: false, error: 'Documento no encontrado.' };
+
+    const updatePayload: Record<string, any> = {
+      conflict_details: null,
+      pipeline_status: 'ACCEPTED',
+      provenance: 'USER_VERIFIED',
+      verified_at: new Date().toISOString(),
+      verified_by: session.userId,
+    };
+
+    if (resolution === 'ACCEPT_DRIVE_SOURCE' && doc.conflict_details?.new_extracted_values) {
+      const newVals = doc.conflict_details.new_extracted_values;
+      if (newVals.total_amount !== undefined) updatePayload.total_amount = newVals.total_amount;
+      if (newVals.subtotal !== undefined) updatePayload.subtotal = newVals.subtotal;
+      if (newVals.tax_iva !== undefined) updatePayload.tax_iva = newVals.tax_iva;
+      if (newVals.counterparty_name !== undefined)
+        updatePayload.counterparty_name = newVals.counterparty_name;
+      if (newVals.document_type !== undefined)
+        updatePayload.document_type = newVals.document_type;
+      updatePayload.review_notes =
+        'Conflicto resuelto: El usuario aceptó los nuevos valores procedentes de Google Drive.';
+    } else {
+      updatePayload.review_notes =
+        'Conflicto resuelto: El usuario ratificó los valores verificados manualmente frente a los cambios de Google Drive.';
+    }
+
+    const { data: updated, error: updateErr } = await supabase
+      .from('documents')
+      .update(updatePayload)
+      .eq('id', documentId)
+      .eq('company_id', session.activeCompanyId)
+      .select()
+      .single();
+
+    if (updateErr) return { success: false, error: updateErr.message };
+
+    await supabase.from('audit_logs').insert({
+      company_id: session.activeCompanyId,
+      user_id: session.userId,
+      action: 'DOCUMENT_CONFLICT_RESOLVED',
+      entity_type: 'documents',
+      entity_id: documentId,
+      before_json: doc,
+      after_json: updated,
+      ip_or_context: `Resolución de conflicto: ${resolution}`,
+    });
+
+    revalidatePath('/documents');
+    revalidatePath('/integrations');
+    revalidatePath('/dashboard');
+    return {
+      success: true,
+      data: updated,
+      message:
+        resolution === 'ACCEPT_DRIVE_SOURCE'
+          ? 'Nuevos valores de Drive aplicados exitosamente.'
+          : 'Valores verificados preservados con éxito.',
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
 }
 

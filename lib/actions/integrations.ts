@@ -50,7 +50,8 @@ export async function getIntegrationsAction(): Promise<ActionResponse<Integratio
  * Logs execution in sync_logs and never creates duplicates.
  */
 export async function triggerSyncAction(
-  provider: string
+  provider: string,
+  options?: { folderId?: string; fileId?: string; maxFiles?: number; recursive?: boolean }
 ): Promise<ActionResponse<SyncLog>> {
   const session = await getServerAuthSession();
   if (!session) return { success: false, error: 'Sesión no iniciada.' };
@@ -91,19 +92,23 @@ export async function triggerSyncAction(
     let recordsFound = 0;
     let recordsCreated = 0;
     let recordsUpdated = 0;
+    let recordsFailed = 0;
     let errorSummary: string | null = null;
     let finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED';
 
     if (provider === 'GOOGLE_DRIVE') {
       const { syncGoogleDriveAccountingDocuments } = await import('@/lib/integrations/google-drive');
-      const syncResult = await syncGoogleDriveAccountingDocuments(session.activeCompanyId);
-      recordsFound = syncResult.filesDiscovered;
+      const syncResult = await syncGoogleDriveAccountingDocuments(session.activeCompanyId, options);
+      recordsFound = syncResult.objectsAnalyzed || syncResult.filesDiscovered;
       recordsCreated = syncResult.filesIngested;
-      recordsUpdated = syncResult.filesSkipped;
+      recordsUpdated = syncResult.filesUpdated !== undefined ? syncResult.filesUpdated : syncResult.filesSkipped;
+      recordsFailed = syncResult.filesFailed;
+      errorSummary = syncResult.message;
 
-      if (!syncResult.success) {
+      if (syncResult.status === 'NEEDS_ATTENTION') {
         finalStatus = 'FAILED';
-        errorSummary = syncResult.message;
+      } else if (!syncResult.success && syncResult.filesIngested === 0 && syncResult.filesUpdated === 0) {
+        finalStatus = 'FAILED';
       }
     } else if (conn?.status === 'NOT_CONFIGURED') {
       // Do not fabricate successful sync if credentials are not configured
@@ -124,6 +129,7 @@ export async function triggerSyncAction(
         records_found: recordsFound,
         records_created: recordsCreated,
         records_updated: recordsUpdated,
+        records_failed: recordsFailed,
         status: finalStatus,
         error_summary: errorSummary,
       })
@@ -137,7 +143,7 @@ export async function triggerSyncAction(
       .update({
         last_sync_at: new Date().toISOString(),
         sync_status: finalStatus === 'COMPLETED' ? 'SUCCESS' : 'ERROR',
-        error_summary: errorSummary,
+        error_summary: finalStatus === 'COMPLETED' ? null : errorSummary,
       })
       .eq('id', conn?.id);
 
@@ -148,22 +154,119 @@ export async function triggerSyncAction(
       entity_type: 'integration_connections',
       entity_id: conn?.id || provider,
       after_json: finalLog,
-      ip_or_context: `Sincronización ${provider}: ${finalStatus} (${recordsFound} analizados)`,
+      ip_or_context: `Sincronización ${provider}: ${finalStatus} (${recordsFound} analizados, ${recordsCreated} creados, ${recordsUpdated} actualizados)`,
     });
 
     revalidatePath('/integrations');
+    revalidatePath('/documents');
     revalidatePath('/dashboard');
     return {
       success: finalStatus === 'COMPLETED',
       data: finalLog,
-      message:
-        finalStatus === 'COMPLETED'
-          ? `Sincronización con ${provider} completada exitosamente (${recordsFound} registros analizados).`
-          : `Atención: ${errorSummary}`,
+      message: errorSummary || `Sincronización con ${provider} completada exitosamente.`,
     };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
+}
+
+/**
+ * Toggles automatic background sync for Google Drive or other providers.
+ */
+export async function toggleAutoSyncAction(
+  provider: string,
+  enabled: boolean,
+  intervalMinutes: number = 15
+): Promise<ActionResponse<boolean>> {
+  const session = await getServerAuthSession();
+  if (!session) return { success: false, error: 'Sesión no iniciada.' };
+
+  const supabase = createServerSupabaseClient();
+  if (!supabase) return { success: false, error: 'Base de datos no disponible.' };
+
+  try {
+    const { data: conn } = await supabase
+      .from('integration_connections')
+      .select('*')
+      .eq('company_id', session.activeCompanyId)
+      .eq('provider', provider)
+      .single();
+
+    if (!conn) return { success: false, error: 'Conexión no encontrada.' };
+
+    const nextScheduled = enabled
+      ? new Date(Date.now() + intervalMinutes * 60 * 1000).toISOString()
+      : null;
+
+    const newConfig = {
+      ...(conn.config || {}),
+      auto_sync_enabled: enabled,
+      sync_interval_minutes: intervalMinutes,
+      next_scheduled_sync_at: nextScheduled,
+    };
+
+    const { error } = await supabase
+      .from('integration_connections')
+      .update({
+        config: newConfig,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', conn.id);
+
+    if (error) return { success: false, error: error.message };
+
+    await supabase.from('audit_logs').insert({
+      company_id: session.activeCompanyId,
+      user_id: session.userId,
+      action: 'INTEGRATION_AUTO_SYNC_TOGGLED',
+      entity_type: 'integration_connections',
+      entity_id: conn.id,
+      ip_or_context: `Sincronización automática de ${provider}: ${
+        enabled ? 'ACTIVA' : 'PAUSADA'
+      } (${intervalMinutes} min)`,
+    });
+
+    revalidatePath('/integrations');
+    return {
+      success: true,
+      data: enabled,
+      message: enabled
+        ? `Sincronización automática activada (cada ${intervalMinutes} minutos).`
+        : 'Sincronización automática pausada.',
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Continuous / Incremental Sync trigger (suitable for testing automatic sync on demand).
+ */
+export async function triggerContinuousSyncAction(
+  provider: string,
+  options?: any
+): Promise<ActionResponse<any>> {
+  const session = await getServerAuthSession();
+  if (!session) return { success: false, error: 'Sesión no iniciada.' };
+
+  if (provider === 'GOOGLE_DRIVE') {
+    const { syncGoogleDriveAccountingDocuments } = await import('@/lib/integrations/google-drive');
+    const syncResult = await syncGoogleDriveAccountingDocuments(session.activeCompanyId, {
+      ...options,
+      mode: 'AUTOMATIC_INCREMENTAL',
+    });
+
+    revalidatePath('/integrations');
+    revalidatePath('/documents');
+    revalidatePath('/dashboard');
+    return {
+      success: syncResult.success,
+      data: syncResult,
+      message: syncResult.message,
+    };
+  }
+
+  return triggerSyncAction(provider, options);
 }
 
 /**

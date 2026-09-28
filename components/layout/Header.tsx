@@ -4,6 +4,10 @@ import React, { useEffect, useState } from 'react';
 import { CompanySelector } from './CompanySelector';
 import { Shield, Bell, LogOut } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import {
+  getInAppSystemNotificationsAction,
+  InAppSystemNotification,
+} from '@/lib/actions/tax-operations';
 
 interface HeaderProps {
   activeCompanyId: string;
@@ -21,6 +25,8 @@ export const Header: React.FC<HeaderProps> = ({
   userRole = 'ADMIN',
 }) => {
   const [userState, setUserState] = useState<{ email: string; role: string; name: string } | null>(null);
+  const [notifications, setNotifications] = useState<InAppSystemNotification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -42,7 +48,13 @@ export const Header: React.FC<HeaderProps> = ({
         role: membership?.role || 'SUPER_ADMIN',
       });
     });
-  }, []);
+
+    getInAppSystemNotificationsAction().then((res) => {
+      if (res.success && res.data) {
+        setNotifications(res.data);
+      }
+    });
+  }, [activeCompanyId]);
 
   const displayEmail = userState?.email || userEmail;
   const displayRole = userState?.role || userRole;
@@ -64,23 +76,141 @@ export const Header: React.FC<HeaderProps> = ({
           onSelectCompany={onSelectCompany}
         />
 
-        {/* Notification Bell */}
-        <button
-          style={{
-            background: 'transparent',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '8px',
-            padding: '8px',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          title="Alertas del sistema"
-        >
-          <Bell size={16} />
-        </button>
+        {/* Notification Bell & Dropdown */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            style={{
+              background: showNotifications ? 'rgba(0, 152, 255, 0.12)' : 'transparent',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: '8px',
+              padding: '8px',
+              color: notifications.length > 0 ? 'var(--paguro-blue)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+            }}
+            title="Alertas del sistema"
+          >
+            <Bell size={16} />
+            {notifications.length > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  backgroundColor: 'var(--color-danger)',
+                  color: '#fff',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 6px rgba(239, 68, 68, 0.6)',
+                }}
+              >
+                {notifications.length}
+              </span>
+            )}
+          </button>
+
+          {showNotifications && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                right: 0,
+                width: '360px',
+                maxHeight: '440px',
+                overflowY: 'auto',
+                backgroundColor: 'rgba(15, 23, 42, 0.98)',
+                backdropFilter: 'blur(16px)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '12px',
+                boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
+                zIndex: 1000,
+                padding: '14px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '12px',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  paddingBottom: '8px',
+                }}
+              >
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-white)' }}>
+                  Notificaciones del Sistema
+                </div>
+                <span className="badge badge-brand-blue" style={{ fontSize: '10px' }}>
+                  {notifications.length} activas
+                </span>
+              </div>
+
+              {notifications.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--text-dim)', fontSize: '12px' }}>
+                  No hay alertas tributarias ni operativas pendientes.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {notifications.map((n) => (
+                    <a
+                      key={n.id}
+                      href={n.href}
+                      onClick={() => setShowNotifications(false)}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        backgroundColor:
+                          n.type === 'DANGER'
+                            ? 'rgba(239, 68, 68, 0.08)'
+                            : n.type === 'WARNING'
+                            ? 'rgba(245, 158, 11, 0.08)'
+                            : 'rgba(59, 130, 246, 0.08)',
+                        border: `1px solid ${
+                          n.type === 'DANGER'
+                            ? 'rgba(239, 68, 68, 0.25)'
+                            : n.type === 'WARNING'
+                            ? 'rgba(245, 158, 11, 0.25)'
+                            : 'rgba(59, 130, 246, 0.25)'
+                        }`,
+                        display: 'block',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color:
+                            n.type === 'DANGER'
+                              ? 'var(--color-danger)'
+                              : n.type === 'WARNING'
+                              ? 'var(--color-warning)'
+                              : 'var(--paguro-blue)',
+                          marginBottom: '3px',
+                        }}
+                      >
+                        {n.title}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                        {n.message}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* User Badge & Logout */}
         <div

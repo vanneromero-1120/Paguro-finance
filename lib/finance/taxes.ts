@@ -79,3 +79,32 @@ export function doPeriodsOverlap(
   const eB = new Date(endB).getTime();
   return sA <= eB && eA >= sB;
 }
+
+/**
+ * Checks if a company tax profile has all required official configuration fields.
+ * If incomplete, tax obligations must not be fabricated and estimates must be marked REVIEW_REQUIRED.
+ */
+export function isTaxProfileComplete(profile: {
+  tax_id?: string | null;
+  legal_name?: string | null;
+  municipality?: string | null;
+  tax_regime?: string | null;
+  rut_responsibilities?: string[] | null;
+  fiscal_year?: number | null;
+} | null | undefined): boolean {
+  if (!profile) return false;
+  return Boolean(
+    profile.tax_id &&
+    profile.tax_id.trim() !== '' &&
+    profile.legal_name &&
+    profile.legal_name.trim() !== '' &&
+    profile.municipality &&
+    profile.municipality.trim() !== '' &&
+    profile.tax_regime &&
+    profile.tax_regime.trim() !== '' &&
+    Array.isArray(profile.rut_responsibilities) &&
+    profile.rut_responsibilities.length > 0 &&
+    profile.fiscal_year
+  );
+}
+

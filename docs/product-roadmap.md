@@ -6,29 +6,35 @@ Paguro Finance is developed across four sequential versions. Each version must b
 
 ---
 
-### Version 1 (CURRENT)
-**Financial Intelligence + Tax Operations**
+### Version 1 (CURRENT - COMPLETED)
+**Authoritative Financial Operations, Document Architecture & Continuous Google Drive Sync**
 
 Core capabilities:
-- Financial Movements Normalization Engine
-- Bank Movement Detection & Reconciliation
-- Google Drive Accounting Document Ingestion Pipeline
-- AI-Powered Document Information Extraction
-- Company-Scoped Movement Categories
-- Colombian Tax Mapping & Context (IVA, Retención, ICA, Renta, RUT)
-- Company Tax Profile & Tax Obligations Calendar
-- Tax Notification Engine
-- AI Financial + Tax Advisor (`Asesor IA`) with Structured Read-Only Tools
-- Banking & Payment Platform Integration Abstractions
+- Financial Movements Normalization Engine (Dual-Entry: Automatic Google Drive + Manual Entry)
+- Google Drive Continuous & Automatic Synchronization (Changes API, Webhooks, Scheduled Cron)
+- Recursive Document Ingestion, Classification & Provenance Precedence (Human Verified Wins)
+- Multi-Document Economic Grouping (Invoices, Packing Lists, Bill of Lading, SWIFT evidence)
+- Company-Scoped Movement Categories & Soft-Deactivation
+- Conservative Colombian Tax Mapping (IVA, Retención, ICA, Renta, RUT)
+- Tax Safety: No unverified import IVA without DIAN Formulario 500
+- Company Tax Profile & Tax Obligations Calendar (UPCOMING, DUE_SOON, DUE_TODAY, OVERDUE, PREPARED, FILED, PAID)
+- In-App Tax & Operational Notifications Engine
+- Banking & Payment Platform Integration Abstractions (Status Management)
 - End-to-End Financial Traceability & Immutable Audit Trail
 - Full Paguro Brand Identity across the Application
 
 ---
 
-### Version 2
-**Reserved**
+### Version 2 (SCHEDULED)
+**AI Financial Intelligence & Autonomous Tax Advisory**
 
-*To be defined and scheduled once Version 1 is stabilized with real accounting and banking data.*
+Scheduled capabilities:
+- AI Financial & Tax Advisor (`Asesor IA` conversational module)
+- Conversational Financial Analytics & interactive chat interface
+- AI Tax Advisory & automated DIAN compliance interpretation
+- AI Financial Insights, runway analysis & cash flow recommendations
+- AI Anomaly Analysis & automated fraud detection
+- Predictive tax provisioning and automated scenario simulation
 
 ---
 

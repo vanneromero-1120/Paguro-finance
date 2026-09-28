@@ -31,6 +31,7 @@ import {
   reviewAndCorrectDocumentAction,
   linkDocumentToMovementAction,
   unlinkDocumentFromMovementAction,
+  resolveDocumentConflictAction,
 } from '@/lib/actions/documents-v1';
 import { getFinancialMovementsAction } from '@/lib/actions/movements';
 import {
@@ -141,6 +142,20 @@ export default function DocumentsPage() {
       loadDocuments();
     } else {
       alert(res.error || 'Error al guardar revisión.');
+    }
+    setSavingReview(false);
+  };
+
+  const handleResolveConflict = async (resolution: 'KEEP_HUMAN_VERIFIED' | 'ACCEPT_DRIVE_SOURCE') => {
+    if (!selectedDoc) return;
+    setSavingReview(true);
+    const res = await resolveDocumentConflictAction(selectedDoc.id, resolution);
+    if (res.success && res.data) {
+      setSelectedDoc(res.data);
+      loadDocuments();
+      alert(res.message);
+    } else {
+      alert(res.error || 'Error al resolver el conflicto.');
     }
     setSavingReview(false);
   };
@@ -304,10 +319,26 @@ export default function DocumentsPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <FileText size={16} color="var(--paguro-blue)" />
                         <div>
-                          <div style={{ fontWeight: 600, color: 'var(--text-white)' }}>{doc.file_name}</div>
-                          {doc.invoice_number && (
-                            <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>No: {doc.invoice_number}</div>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--text-white)' }}>{doc.file_name}</span>
+                            {doc.conflict_details && (
+                              <span className="badge badge-warning" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                Conflicto Drive
+                              </span>
+                            )}
+                            {doc.source_status === 'SOURCE_MISSING' && (
+                              <span className="badge badge-danger" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                Retirado de Drive
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                            {doc.invoice_number && <span>No: {doc.invoice_number}</span>}
+                            {doc.drive_folder_path && <span>📁 {doc.drive_folder_path}</span>}
+                            <span style={{ color: doc.provenance === 'USER_VERIFIED' ? 'var(--color-success)' : 'var(--text-dim)' }}>
+                              {doc.provenance === 'USER_VERIFIED' ? '✓ Verificado' : '• Google Drive'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -410,7 +441,113 @@ export default function DocumentsPage() {
           title={`Validación Humana • ${selectedDoc.file_name}`}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {selectedDoc.pipeline_status === 'REQUIRES_REVIEW' && (
+            {/* Conflict Detection Banner: SOURCE_CHANGED_AFTER_VERIFICATION */}
+            {selectedDoc.conflict_details && (
+              <div
+                style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '10px',
+                  padding: '14px 16px',
+                  color: 'var(--text-white)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <AlertTriangle size={16} color="var(--color-danger)" />
+                  <strong style={{ fontSize: '13px', color: 'var(--color-danger)' }}>
+                    Conflicto Detectado: SOURCE_CHANGED_AFTER_VERIFICATION
+                  </strong>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                  Este documento fue modificado en Google Drive tras haber sido verificado manualmente. Por seguridad contable, los datos verificados no se sobreescribieron. Seleccione una acción de resolución:
+                </p>
+
+                <div
+                  style={{
+                    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                    borderRadius: '6px',
+                    padding: '10px',
+                    fontSize: '12px',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1.2fr 1fr 1fr',
+                      gap: '8px',
+                      fontWeight: 600,
+                      color: 'var(--text-dim)',
+                      marginBottom: '6px',
+                      fontSize: '11px',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    <span>Campo</span>
+                    <span>Valor Verificado Anterior</span>
+                    <span style={{ color: 'var(--paguro-blue)' }}>Nuevo Valor en Drive</span>
+                  </div>
+                  {selectedDoc.conflict_details.changed_fields?.map((field: string) => (
+                    <div
+                      key={field}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1.2fr 1fr 1fr',
+                        gap: '8px',
+                        padding: '5px 0',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                      }}
+                    >
+                      <span style={{ color: 'var(--text-white)', fontWeight: 500 }}>{field}</span>
+                      <span style={{ color: 'var(--color-success)' }}>
+                        {String(selectedDoc.conflict_details?.previous_values?.[field] ?? '—')}
+                      </span>
+                      <span style={{ color: 'var(--paguro-blue)', fontWeight: 600 }}>
+                        {String(selectedDoc.conflict_details?.new_extracted_values?.[field] ?? '—')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleResolveConflict('KEEP_HUMAN_VERIFIED')}
+                    disabled={savingReview}
+                    style={{ fontSize: '12px' }}
+                  >
+                    <span>Conservar Valor Verificado</span>
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => handleResolveConflict('ACCEPT_DRIVE_SOURCE')}
+                    disabled={savingReview}
+                    style={{ fontSize: '12px', backgroundColor: 'var(--paguro-blue)' }}
+                  >
+                    <span>Aceptar Nuevo Valor de Drive</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Source Missing Notice */}
+            {selectedDoc.source_status === 'SOURCE_MISSING' && (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  color: 'var(--color-danger)',
+                  fontSize: '12px',
+                }}
+              >
+                <AlertTriangle size={14} style={{ display: 'inline', marginRight: '6px' }} />
+                <strong>Aviso de Trazabilidad:</strong> El archivo original fue eliminado o retirado de Google Drive. Por normativa tributaria y auditoría, el registro documental y los movimientos financieros vinculados se conservan intactos.
+              </div>
+            )}
+
+            {selectedDoc.pipeline_status === 'REQUIRES_REVIEW' && !selectedDoc.conflict_details && (
               <div
                 style={{
                   padding: '10px 14px',

@@ -120,13 +120,71 @@ export default function TaxesPage() {
         </div>
       </div>
 
+      {/* INCOMPLETE PROFILE ALERT BANNER */}
+      {taxPosition && !taxPosition.is_profile_complete && (
+        <div
+          style={{
+            padding: '16px 20px',
+            borderRadius: '10px',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AlertTriangle size={24} color="var(--color-danger)" style={{ flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--color-danger)' }}>
+                CONFIGURACIÓN TRIBUTARIA INCOMPLETA
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Faltan datos fiscales oficiales (NIT, Régimen, Municipio, Responsabilidades RUT). No se fabrican obligaciones ficticias hasta completar el perfil.
+              </div>
+            </div>
+          </div>
+          <Link href="/settings" className="btn btn-primary" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+            Completar Perfil
+          </Link>
+        </div>
+      )}
+
+      {/* IMPORT TAX SAFETY BANNER */}
+      {taxPosition && taxPosition.unverified_import_count > 0 && (
+        <div
+          style={{
+            padding: '14px 18px',
+            borderRadius: '10px',
+            backgroundColor: 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+          }}
+        >
+          <AlertTriangle size={20} color="var(--color-warning)" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ fontSize: '12px', lineHeight: 1.5 }}>
+            <span style={{ fontWeight: 700, color: 'var(--color-warning)' }}>
+              Seguridad Fiscal en Operaciones de Importación:
+            </span>{' '}
+            <span style={{ color: 'var(--text-muted)' }}>
+              Se detectaron {taxPosition.unverified_import_count} movimiento(s) de importación (Facturas comerciales internacionales). La factura comercial extranjera no acredita por sí sola IVA descontable en Colombia. El IVA correspondiente se mantiene en estado <strong>REQUIERE REVISIÓN</strong> y no se deducirá hasta adjuntar la Declaración de Importación oficial DIAN (Formulario 500).
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* KPI GRID */}
       <div className="kpi-grid">
         {/* IVA Generado */}
         <StatCard
           label="IVA Generado"
           value={taxPosition ? `$${taxPosition.generated_iva.toLocaleString('es-CO')}` : '—'}
-          subtitle="Cobrado en ventas gravadas (19%)"
+          subtitle={`Cobrado en ventas gravadas (${taxPosition?.value_statuses?.generated_iva || 'ESTIMADO'})`}
           highlightColor="primary"
           icon={<TrendingUp size={18} />}
         />
@@ -135,8 +193,8 @@ export default function TaxesPage() {
         <StatCard
           label="IVA Descontable"
           value={taxPosition ? `$${taxPosition.deductible_iva.toLocaleString('es-CO')}` : '—'}
-          subtitle="Pagado en compras y servicios"
-          highlightColor="success"
+          subtitle={`Pagado en compras válidas (${taxPosition?.value_statuses?.deductible_iva || 'ESTIMADO'})`}
+          highlightColor={taxPosition?.value_statuses?.deductible_iva === 'REVIEW_REQUIRED' ? 'warning' : 'success'}
           icon={<TrendingDown size={18} />}
         />
 
@@ -145,7 +203,9 @@ export default function TaxesPage() {
           label="IVA Neto Estimado"
           value={taxPosition ? `$${taxPosition.estimated_net_iva.toLocaleString('es-CO')}` : '—'}
           subtitle={
-            taxPosition?.iva_position_type === 'PAYABLE' ? 'Saldo estimado a pagar' : 'Saldo a favor'
+            taxPosition?.iva_position_type === 'PAYABLE'
+              ? `Saldo a pagar (${taxPosition.value_statuses?.net_iva || 'ESTIMADO'})`
+              : `Saldo a favor (${taxPosition?.value_statuses?.net_iva || 'ESTIMADO'})`
           }
           highlightColor={taxPosition?.iva_position_type === 'PAYABLE' ? 'danger' : 'success'}
           icon={<Layers size={18} />}
@@ -155,7 +215,7 @@ export default function TaxesPage() {
         <StatCard
           label="Retención Estimada"
           value={taxPosition ? `$${taxPosition.withholding_tax_estimated.toLocaleString('es-CO')}` : '—'}
-          subtitle="Retefuente estimada en compras"
+          subtitle={`Retefuente compras (${taxPosition?.value_statuses?.withholding || 'ESTIMADO'})`}
           highlightColor="warning"
           icon={<Percent size={18} />}
         />
