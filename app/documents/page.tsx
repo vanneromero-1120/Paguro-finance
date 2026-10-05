@@ -21,6 +21,7 @@ import {
   Clock,
   Layers,
   FileCheck2,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -32,6 +33,8 @@ import {
   linkDocumentToMovementAction,
   unlinkDocumentFromMovementAction,
   resolveDocumentConflictAction,
+  getDocumentPreviewUrlAction,
+  getCurrentUserDocumentPermissionsAction,
 } from '@/lib/actions/documents-v1';
 import { getFinancialMovementsAction } from '@/lib/actions/movements';
 import {
@@ -54,6 +57,14 @@ export default function DocumentsPage() {
   const [editingDoc, setEditingDoc] = useState<any>(null);
   const [savingReview, setSavingReview] = useState(false);
   const [extracting, setExtracting] = useState(false);
+
+  // Document Preview State
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  // User Permissions
+  const [canValidate, setCanValidate] = useState(true);
+  const [userRole, setUserRole] = useState<string>('ADMIN');
 
   // Link Movement Modal
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -86,9 +97,35 @@ export default function DocumentsPage() {
     loadDocuments();
   }, [loadDocuments]);
 
+  useEffect(() => {
+    getCurrentUserDocumentPermissionsAction().then((res) => {
+      if (res.success && res.data) {
+        setCanValidate(res.data.canValidate);
+        setUserRole(res.data.role);
+      }
+    });
+  }, []);
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     loadDocuments();
+  };
+
+  const handleViewDocument = async (doc: AccountingDocument) => {
+    setPreviewError(null);
+    setPreviewLoadingId(doc.id);
+    try {
+      const res = await getDocumentPreviewUrlAction(doc.id);
+      if (!res.success || !res.data?.url) {
+        setPreviewError(res.error || 'No se pudo generar la vista previa del documento.');
+        return;
+      }
+      window.open(res.data.url, '_blank', 'noopener,noreferrer');
+    } catch (err: any) {
+      setPreviewError(err.message || 'Error al abrir el documento.');
+    } finally {
+      setPreviewLoadingId(null);
+    }
   };
 
   const handleOpenReview = (doc: AccountingDocument) => {
@@ -394,13 +431,38 @@ export default function DocumentsPage() {
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', gap: '6px' }}>
+                        {/* A) Ver Documento Original */}
+                        <button
+                          onClick={() => handleViewDocument(doc)}
+                          disabled={previewLoadingId === doc.id}
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                          title="Ver documento original (PDF/soporte)"
+                        >
+                          <ExternalLink size={12} color="var(--paguro-blue)" />
+                          <span>{previewLoadingId === doc.id ? 'Abriendo...' : 'Ver documento'}</span>
+                        </button>
+
+                        {/* B) Revisar y Validar Metadatos */}
                         <button
                           onClick={() => handleOpenReview(doc)}
                           className="btn btn-secondary"
-                          style={{ padding: '4px 8px', fontSize: '11px' }}
-                          title="Revisar y corregir datos"
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                          title="Abrir modal de validación humana"
                         >
-                          <Eye size={13} />
+                          <Eye size={12} />
                           <span>Revisar</span>
                         </button>
 
@@ -411,7 +473,7 @@ export default function DocumentsPage() {
                             style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-danger)' }}
                             title="Desvincular movimiento"
                           >
-                            <Unlink size={13} />
+                            <Unlink size={12} />
                           </button>
                         ) : (
                           <button
@@ -420,7 +482,7 @@ export default function DocumentsPage() {
                             style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--paguro-blue)' }}
                             title="Vincular a movimiento financiero"
                           >
-                            <LinkIcon size={13} />
+                            <LinkIcon size={12} />
                           </button>
                         )}
                       </div>
@@ -437,10 +499,95 @@ export default function DocumentsPage() {
       {selectedDoc && editingDoc && (
         <Modal
           isOpen={!!selectedDoc}
-          onClose={() => setSelectedDoc(null)}
+          onClose={() => {
+            setSelectedDoc(null);
+            setPreviewError(null);
+          }}
           title={`Validación Humana • ${selectedDoc.file_name}`}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {/* Top Bar: Ver Documento Original */}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 14px',
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={18} color="var(--paguro-blue)" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-white)' }}>
+                    {selectedDoc.file_name}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                    {selectedDoc.drive_folder_path
+                      ? `📁 ${selectedDoc.drive_folder_path}`
+                      : 'Soporte Contable Registrado'}
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                variant="secondary"
+                onClick={() => handleViewDocument(selectedDoc)}
+                disabled={previewLoadingId === selectedDoc.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                  borderColor: 'rgba(59, 130, 246, 0.4)',
+                }}
+              >
+                <ExternalLink size={13} color="var(--paguro-blue)" />
+                <span>
+                  {previewLoadingId === selectedDoc.id ? 'Abriendo...' : 'Ver documento original'}
+                </span>
+              </Button>
+            </div>
+
+            {/* Preview Error Banner if any */}
+            {previewError && (
+              <div
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: 'var(--color-danger)',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <AlertTriangle size={14} />
+                <span>{previewError}</span>
+              </div>
+            )}
+
+            {/* Read-Only Notice for VIEWER role */}
+            {!canValidate && (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  color: 'var(--paguro-blue)',
+                  fontSize: '12px',
+                }}
+              >
+                <strong>Modo Solo Lectura (VIEWER):</strong> Su rol tiene permiso para visualizar el documento original y sus valores extraídos, pero no está autorizado para validar o modificar registros contables.
+              </div>
+            )}
             {/* Conflict Detection Banner: SOURCE_CHANGED_AFTER_VERIFICATION */}
             {selectedDoc.conflict_details && (
               <div
@@ -694,10 +841,17 @@ export default function DocumentsPage() {
               <Button
                 variant="primary"
                 onClick={handleSaveCorrection}
-                disabled={savingReview}
-                style={{ backgroundColor: 'var(--paguro-blue)' }}
+                disabled={savingReview || !canValidate}
+                style={{
+                  backgroundColor: canValidate ? 'var(--paguro-blue)' : 'var(--border-color)',
+                  opacity: canValidate ? 1 : 0.6,
+                }}
               >
-                {savingReview ? 'Validando...' : 'Aceptar & Validar Documento'}
+                {savingReview
+                  ? 'Validando...'
+                  : canValidate
+                  ? 'Aceptar & Validar Documento'
+                  : 'Solo Lectura (VIEWER)'}
               </Button>
             </div>
           </div>

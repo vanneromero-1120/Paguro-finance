@@ -14,6 +14,9 @@ import {
   AccountingDocumentType,
 } from '@/types/v1-financial';
 
+const READ_ROLES = ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'ACCOUNTANT', 'OPERATIONS', 'VIEWER'];
+const VALIDATE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'ACCOUNTANT', 'OPERATIONS'];
+
 export interface ActionResponse<T = any> {
   success: boolean;
   data?: T;
@@ -219,6 +222,13 @@ export async function reviewAndCorrectDocumentAction(
   const session = await getServerAuthSession();
   if (!session) return { success: false, error: 'Sesión no iniciada.' };
 
+  if (!VALIDATE_ROLES.includes(session.activeRole)) {
+    return {
+      success: false,
+      error: 'Permiso denegado. El rol de solo lectura (VIEWER) no está autorizado para validar o modificar documentos contables.',
+    };
+  }
+
   const supabase = createServerSupabaseClient();
   if (!supabase) return { success: false, error: 'Base de datos no disponible.' };
 
@@ -421,6 +431,13 @@ export async function resolveDocumentConflictAction(
   const session = await getServerAuthSession();
   if (!session) return { success: false, error: 'Sesión no iniciada.' };
 
+  if (!VALIDATE_ROLES.includes(session.activeRole)) {
+    return {
+      success: false,
+      error: 'Permiso denegado. El rol de solo lectura (VIEWER) no está autorizado para resolver conflictos documentales.',
+    };
+  }
+
   const supabase = createServerSupabaseClient();
   if (!supabase) return { success: false, error: 'Base de datos no disponible.' };
 
@@ -494,4 +511,134 @@ export async function resolveDocumentConflictAction(
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * Returns a secure preview URL for the original document.
+ * Respects company isolation, role permissions (VIEWER+), and supports both Google Drive and Supabase Storage.
+ * Never exposes OAuth tokens or public permanent URLs.
+ */
+export async function getDocumentPreviewUrlAction(
+  documentId: string
+): Promise<ActionResponse<{ url: string; file_name: string; mime_type: string; source: 'GOOGLE_DRIVE' | 'STORAGE' }>> {
+  const session = await getServerAuthSession();
+  if (!session) return { success: false, error: 'Sesión no iniciada.' };
+
+  if (!READ_ROLES.includes(session.activeRole)) {
+    return { success: false, error: 'Permiso denegado para consultar documentos.' };
+  }
+
+  const supabase = createServerSupabaseClient();
+  if (!supabase) return { success: false, error: 'Base de datos no disponible.' };
+
+  try {
+    const { data: doc, error } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('id', documentId)
+      .eq('company_id', session.activeCompanyId)
+      .single();
+
+    if (error || !doc) {
+      return { success: false, error: 'Documento no encontrado o no pertenece a la empresa activa.' };
+    }
+
+    if (doc.source_status === 'SOURCE_MISSING' || doc.source_status === 'REMOVED_FROM_DRIVE') {
+      return {
+        success: false,
+        error: 'El archivo original fue retirado o eliminado de Google Drive. El soporte contable se conserva por auditoría.',
+      };
+    }
+
+    const isGoogleDrive = Boolean(
+      doc.drive_file_id || (doc.storage_path && doc.storage_path.startsWith('gdrive/'))
+    );
+
+    if (isGoogleDrive) {
+      // Check integration connection state
+      const { data: conn } = await supabase
+        .from('integration_connections')
+        .select('*')
+        .eq('company_id', session.activeCompanyId)
+        .eq('provider', 'GOOGLE_DRIVE')
+        .single();
+
+      if (!conn || conn.status === 'NOT_CONFIGURED') {
+        return {
+          success: false,
+          error: 'Google Drive no está configurado para la empresa activa.',
+        };
+      }
+
+      if (conn.status === 'NEEDS_ATTENTION') {
+        return {
+          success: false,
+          error: 'La sesión de Google Drive ha expirado o requiere reconexión.',
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          url: `/api/documents/${doc.id}/preview`,
+          file_name: doc.file_name,
+          mime_type: doc.mime_type || 'application/pdf',
+          source: 'GOOGLE_DRIVE',
+        },
+      };
+    }
+
+    // Storage file: create signed URL with 60-second expiration
+    if (doc.storage_path) {
+      const { data: signedData, error: signErr } = await supabase.storage
+        .from('financial-documents')
+        .createSignedUrl(doc.storage_path, 60);
+
+      if (signErr || !signedData?.signedUrl) {
+        return {
+          success: true,
+          data: {
+            url: `/api/documents/${doc.id}/preview`,
+            file_name: doc.file_name,
+            mime_type: doc.mime_type || 'application/pdf',
+            source: 'STORAGE',
+          },
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          url: signedData.signedUrl,
+          file_name: doc.file_name,
+          mime_type: doc.mime_type || 'application/pdf',
+          source: 'STORAGE',
+        },
+      };
+    }
+
+    return { success: false, error: 'El documento no tiene una ruta de almacenamiento válida.' };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Error al obtener URL del documento.' };
+  }
+}
+
+/**
+ * Returns current user's document permissions (canValidate vs read-only VIEWER).
+ */
+export async function getCurrentUserDocumentPermissionsAction(): Promise<
+  ActionResponse<{ role: string; canValidate: boolean }>
+> {
+  const session = await getServerAuthSession();
+  if (!session) return { success: false, error: 'Sesión no iniciada.' };
+
+  const canValidate = VALIDATE_ROLES.includes(session.activeRole);
+  return {
+    success: true,
+    data: {
+      role: session.activeRole,
+      canValidate,
+    },
+  };
+}
+
 

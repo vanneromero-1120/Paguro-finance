@@ -44,3 +44,5 @@ Thumbs.db
 # Local test & diagnostic scripts
 scripts/test-*.mjs
 scripts/diag-*.mjs
+
+.vercel

@@ -25,6 +25,15 @@ async function handleSyncCron(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const isDev = process.env.NODE_ENV === 'development';
 
+  // Reject production query-string authentication (?secret=, ?key=)
+  const hasQuerySecret = request.nextUrl.searchParams.has('secret') || request.nextUrl.searchParams.has('key');
+  if (hasQuerySecret) {
+    return NextResponse.json(
+      { error: 'Unauthorized: Query secrets (?secret=, ?key=) are strictly rejected in production. Authorization: Bearer <CRON_SECRET> header is required.' },
+      { status: 401 }
+    );
+  }
+
   // Security Check: CRON_SECRET enforcement
   if (!cronSecret) {
     if (!isDev) {

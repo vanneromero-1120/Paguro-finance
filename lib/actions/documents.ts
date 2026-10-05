@@ -336,6 +336,21 @@ export async function getDocumentDownloadUrlAction(
       return { success: false, error: 'Documento no encontrado o no pertenece a la empresa activa.' };
     }
 
+    const isGoogleDrive = Boolean(
+      doc.drive_file_id || (doc.storage_path && doc.storage_path.startsWith('gdrive/'))
+    );
+
+    if (isGoogleDrive) {
+      return {
+        success: true,
+        data: {
+          signed_url: `/api/documents/${doc.id}/preview`,
+          file_name: doc.file_name,
+          mime_type: doc.mime_type || 'application/pdf',
+        },
+      };
+    }
+
     // 2. Generate short-lived signed URL (60-second expiration)
     const { data: signedData, error: signErr } = await supabase.storage
       .from('financial-documents')
